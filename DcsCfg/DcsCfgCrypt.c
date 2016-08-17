@@ -117,7 +117,7 @@ TryHeaderDecrypt(
 		headerCryptoInfo);
 
 	if (vcres != 0) {
-		ERR_PRINT(L"Decrypt error(%x)\n", vcres);
+		ERR_PRINT(L"Authorization failed. Wrong password, PIM or hash. Decrypt error(%x)\n", vcres);
 		return EFI_INVALID_PARAMETER;
 	}
 	OUT_PRINT(L"%H" L"Success\n" L"%N", vcres);

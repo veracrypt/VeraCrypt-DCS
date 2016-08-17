@@ -639,7 +639,7 @@ SecRegionTryDecrypt()
 		if (gAuthPwdCode == AskPwdRetCancel) {
 			return EFI_NOT_READY;
 		}
-		OUT_PRINT(L"Authorize...\n\r");
+		OUT_PRINT(L"Authorizing...\n\r");
 		do {
 			CopyMem(Header, SecRegionData + SecRegionOffset, 512);
 			vcres = ReadVolumeHeader(gAuthBoot, Header, &gAuthPassword, gAuthHash, gAuthPim, gAuthTc, &SecRegionCryptInfo, NULL);
@@ -650,7 +650,7 @@ SecRegionTryDecrypt()
 			OUT_PRINT(L"start %lld len %lld\n", SecRegionCryptInfo->EncryptedAreaStart.Value, SecRegionCryptInfo->EncryptedAreaLength.Value);
 			break;
 		}	else {
-			ERR_PRINT(L"Decript error(%x)\n\r", vcres);
+			ERR_PRINT(L"Authorization failed. Wrong password, PIM or hash. Decrypt error(%x)\n\r", vcres);
 		}
 	} while (vcres != 0 && gAuthRetry != 0);
 	if (vcres != 0) {

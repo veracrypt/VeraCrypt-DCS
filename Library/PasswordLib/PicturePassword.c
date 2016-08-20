@@ -15,6 +15,7 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Uefi.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/DebugLib.h>
+#include <Library/BaseMemoryLib.h>
 
 #include <Library/CommonLib.h>
 #include <Library/GraphLib.h>
@@ -379,7 +380,14 @@ AskPictPwdInt(
 	{
 		curPrevX = curX;
 		curPrevY = curY;
+		ZeroMem(&key, sizeof(key));
 		res = gBS->WaitForEvent(eventsCount, InputEvents, &EventIndex);
+		if (EventIndex == 0) {
+			res = gST->ConIn->ReadKeyStroke(gST->ConIn, &key);
+			if (EFI_ERROR(res)) {
+				continue;
+			}
+		}
 		// OUT_PRINT(L" \r%05d %05d", (UINT32)curX, (UINT32)curY, );
 		// recharge timeout event and stop beep
 		if (gBeepControlEnabled && gBeepEnabled && beepOn) {
@@ -406,9 +414,8 @@ AskPictPwdInt(
 		}
 
 		if (EventIndex == 0) {
-			gST->ConIn->ReadKeyStroke(gST->ConIn, &key);
+//			gST->ConIn->ReadKeyStroke(gST->ConIn, &key);
 			// OUT_PRINT(L" %04x, %04x\r", key.ScanCode, key.UnicodeChar);
-
 			// Remove dirty chars 0.1s
 			FlushInputDelay(100000);
 			switch (key.ScanCode)

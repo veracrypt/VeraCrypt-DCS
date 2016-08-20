@@ -72,7 +72,9 @@ KeyWait(
       OUT_PRINT(Prompt, mDelay);
       gBS->WaitForEvent(2, InputEvents, &EventIndex);
       if (EventIndex == 0) {
-         gST->ConIn->ReadKeyStroke(gST->ConIn, &key);
+			if (EFI_ERROR(gST->ConIn->ReadKeyStroke(gST->ConIn, &key))) {
+				continue;
+			}
          break;
       }
       else {
@@ -89,9 +91,12 @@ GetKey(void)
 {
    EFI_INPUT_KEY key;
    UINTN EventIndex;
-
-   gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, &EventIndex);
-   gST->ConIn->ReadKeyStroke(gST->ConIn, &key);
+	EFI_STATUS res1;
+	EFI_STATUS res2;
+	do {
+		res1 = gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, &EventIndex);
+		res2 = gST->ConIn->ReadKeyStroke(gST->ConIn, &key);
+	} while (EFI_ERROR(res1) || EFI_ERROR(res2));
    return key;
 }
 
@@ -135,6 +140,8 @@ GetLine (
 
    do {
       key = GetKey();
+		// Remove dirty chars 0.1s
+		FlushInputDelay(100000);
 
       if ((count >= line_max &&
          key.UnicodeChar != CHAR_BACKSPACE) ||

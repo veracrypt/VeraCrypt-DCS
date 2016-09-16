@@ -235,6 +235,7 @@ BltPoint(
 	IN UINTN x,
 	IN UINTN y
 	) {
+	if (!draw) draw = &gDrawContext;
 	if (draw->Brush == NULL) return BltPointSingle(blt, draw, x, y);
 	else
 	{

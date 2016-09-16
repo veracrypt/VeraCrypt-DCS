@@ -71,6 +71,7 @@ EfiGetHandles(
 {
    EFI_STATUS res = EFI_BUFFER_TOO_SMALL;
    UINTN      BufferSize;
+	if ((Buffer == NULL) || (Count == NULL)) return EFI_INVALID_PARAMETER;
    if(*Buffer != NULL) MEM_FREE(*Buffer);
    *Count = 0;
    *Buffer = (EFI_HANDLE*) MEM_ALLOC(sizeof(EFI_HANDLE));
@@ -80,7 +81,7 @@ EfiGetHandles(
       if (res == RETURN_BUFFER_TOO_SMALL) {
          MEM_FREE(*Buffer);
          *Buffer = (EFI_HANDLE*)MEM_ALLOC(BufferSize);
-         if (!Buffer) {
+         if (*Buffer == NULL) {
             return EFI_OUT_OF_RESOURCES;
          }
          res = gBS->LocateHandle(SearchType, Protocol, SearchKey, &BufferSize, *Buffer);

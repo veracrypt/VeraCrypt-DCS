@@ -37,8 +37,11 @@ BOOL ConfigRead(char *configKey, char *configValue, int maxValueSize)
 {
 	char *xml;
 
-	if (ConfigBuffer == NULL)
-		FileLoad(NULL, L"\\EFI\\VeraCrypt\\DcsProp", &ConfigBuffer, &ConfigBufferSize);
+	if (ConfigBuffer == NULL) {
+		if (FileLoad(NULL, L"\\EFI\\VeraCrypt\\DcsProp", &ConfigBuffer, &ConfigBufferSize) != EFI_SUCCESS) {
+			return FALSE;
+		}
+	}
 
 	xml = ConfigBuffer;
 	if (xml != NULL)

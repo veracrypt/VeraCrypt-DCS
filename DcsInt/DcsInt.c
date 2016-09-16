@@ -262,7 +262,7 @@ IntBlockIO_Write(
 			writeCrypted = MEM_ALLOC(BufferSize);
 			if (writeCrypted == NULL) {
 				Status = EFI_BAD_BUFFER_SIZE;
-
+				return Status;
 			}
 			CopyMem(writeCrypted, Buffer, BufferSize);
 			//      Print(L"*");
@@ -354,18 +354,7 @@ IntBlockIo_Hook(
 		DcsIntBlockIo->Controller = DeviceHandle;
 		DcsIntBlockIo->BlockIo = BlockIo;
 		DcsIntBlockIo->IsReinstalled = 0;
-
-		if (EFI_ERROR(Status)) {
-			gBS->CloseProtocol(
-				DeviceHandle,
-				&gEfiBlockIoProtocolGuid,
-				This->DriverBindingHandle,
-				DeviceHandle
-				);
-			MEM_FREE(DcsIntBlockIo);
-			return EFI_UNSUPPORTED;
-		}
-		// Block
+// Block
 //		Tpl = gBS->RaiseTPL(TPL_NOTIFY);
 		// Install new routines
 		DcsIntBlockIo->CryptInfo = SecRegionCryptInfo;
@@ -579,24 +568,30 @@ SecRegionChangePwd() {
 
 	if (vcres != 0) {
 		ERR_PRINT(L"header create error(%x)\n", vcres);
-		return EFI_INVALID_PARAMETER;
+		Status = EFI_INVALID_PARAMETER;
+		goto ret;
 	}
 
 	// get BlockIo protocol
 	bio = EfiGetBlockIO(SecRegionHandle);
 	if (bio == NULL) {
 		ERR_PRINT(L"Block io not supported\n,");
-		return EFI_NOT_FOUND;
+		Status = EFI_NOT_FOUND;
+		goto ret;
 	}
 
 	Status = bio->WriteBlocks(bio, bio->Media->MediaId, SecRegionSector, 512, Header);
 	if (EFI_ERROR(Status)) {
 		ERR_PRINT(L"Write: %r\n", Status);
-		return Status;
+		goto ret;
 	}
 	CopyMem(&gAuthPassword, &newPassword, sizeof(gAuthPassword));
 	CopyMem(SecRegionData + SecRegionOffset, Header, 512);
 	ERR_PRINT(L"Update (%r)\n", Status);
+
+ret:
+	burn(&newPassword, sizeof(newPassword));
+	burn(&confirmPassword, sizeof(confirmPassword));
 	return Status;
 }
 
@@ -1017,6 +1012,10 @@ UefiMain(
 
 	DetectX86Features();
 	res = SecRegionTryDecrypt();
+
+	// Reset Console buffer
+	gST->ConIn->Reset(gST->ConIn, FALSE);
+
 	if (EFI_ERROR(res)) {
 		return OnExit(gOnExitFailed, OnExitAuthFaild, res);
 	}

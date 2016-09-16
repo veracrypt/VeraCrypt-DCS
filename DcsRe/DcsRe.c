@@ -151,7 +151,9 @@ ActionShell() {
 
 EFI_STATUS
 ActionDcsBoot() {
-	return EfiExec(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi");
+	SelectEfiVolume();
+	if (EfiBootVolume == NULL) return EFI_NOT_READY;
+	return EfiExec(gFSHandles[EfiBootVolumeIndex], L"EFI\\VeraCrypt\\DcsBoot.efi");
 }
 
 CHAR16* DcsBootBins[] = {

@@ -163,7 +163,14 @@ ChangePassword(
 		ZeroMem(&newPassword, sizeof(newPassword));
 		ZeroMem(&confirmPassword, sizeof(newPassword));
 		VCAskPwd(AskPwdNew, &newPassword);
+		if (gAuthPwdCode == AskPwdRetCancel) {
+			return EFI_NOT_READY;
+		}
 		VCAskPwd(AskPwdConfirm, &confirmPassword);
+		if (gAuthPwdCode == AskPwdRetCancel) {
+			burn(&newPassword, sizeof(newPassword));
+			return EFI_NOT_READY;
+		}
 		if (newPassword.Length == confirmPassword.Length) {
 			if (CompareMem(newPassword.Text, confirmPassword.Text, confirmPassword.Length) == 0) {
 				break;
@@ -191,6 +198,10 @@ ChangePassword(
 		cryptoInfo->HeaderFlags,
 		cryptoInfo->SectorSize,
 		FALSE);
+		
+		
+	burn(&newPassword, sizeof(newPassword));
+	burn(&confirmPassword, sizeof(confirmPassword));
 
 	if (vcres != 0) {
 		ERR_PRINT(L"header create error(%x)\n", vcres);

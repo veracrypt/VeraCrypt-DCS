@@ -391,4 +391,5 @@ ApplyKeyFile(
 	if (password->Length < (int)sizeof(keyPool))
 		password->Length = sizeof(keyPool);
 
+	burn (keyPool, sizeof(keyPool));
 }

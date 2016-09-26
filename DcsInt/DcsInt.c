@@ -156,8 +156,8 @@ PrepareBootParams(
 	SetSecRegionParamsMemory();
 
 	// Clean auth data
-	ZeroMem(&gAuthPassword, sizeof(gAuthPassword));
-	gAuthPim = 0;
+	burn(&gAuthPassword, sizeof(gAuthPassword));
+	burn(&gAuthPim, sizeof(gAuthPim));
 
 	return EFI_SUCCESS;
 }
@@ -536,6 +536,7 @@ SecRegionChangePwd() {
 		}
 		VCAskPwd(AskPwdConfirm, &confirmPassword);
 		if (gAuthPwdCode == AskPwdRetCancel) {
+			burn(&newPassword, sizeof(newPassword));
 			return EFI_NOT_READY;
 		}
 		if (newPassword.Length == confirmPassword.Length) {
@@ -921,15 +922,15 @@ VirtualNotifyEvent(
 {
 	// Clean all sensible info and keys before transfer to OS
 	if (SecRegionCryptInfo != NULL) {
-		ZeroMem(SecRegionCryptInfo, sizeof(*SecRegionCryptInfo));
+		burn(SecRegionCryptInfo, sizeof(*SecRegionCryptInfo));
 	}
 
 	if (gRnd != NULL) {
-		ZeroMem(gRnd, sizeof(*gRnd));
+		burn(gRnd, sizeof(*gRnd));
 	}
 
 	if (SecRegionData != NULL) {
-		ZeroMem(SecRegionData, SecRegionSize);
+		burn(SecRegionData, SecRegionSize);
 	}
 }
 

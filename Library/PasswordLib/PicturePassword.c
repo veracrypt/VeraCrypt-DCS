@@ -628,6 +628,8 @@ AskPictPwdInt(
 
 		pwdAction = PwdActNone;
 	} while (TRUE);
+	burn (&key, sizeof (key));
+	burn (&pwdNewChar, sizeof (pwdNewChar));
 	gBS->CloseEvent(InputEvents[1]);
 	gBS->CloseEvent(UpdateEvent);
 	gBS->CloseEvent(BeepOffEvent);

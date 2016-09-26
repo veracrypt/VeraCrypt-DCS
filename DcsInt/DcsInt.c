@@ -826,7 +826,9 @@ OnExit(
 		retValue = AsciiStrDecimalToUintn(exitStatusStr);
 	}
 
-	OnExitGetParam(action, "file", NULL, &fileStr);
+	if (!OnExitGetParam(action, "file", NULL, &fileStr)) {
+		fileStr = NULL;
+	}
 
 
 	if (OnExitGetParam(action, "printinfo", NULL, NULL)) {
@@ -863,12 +865,18 @@ OnExit(
 				EfiCpuHalt();
 			}
 			// Try to exec
-			res = EfiExec(h, fileStr);
-			if (EFI_ERROR(res)) {
-				ERR_PRINT(L"\nStart %s - %r\n", fileStr, res);
+			if (fileStr != NULL) {				
+				res = EfiExec(h, fileStr);
+				if (EFI_ERROR(res)) {
+					ERR_PRINT(L"\nStart %s - %r\n", fileStr, res);
+					EfiCpuHalt();
+				}
+			}
+			else {
+				ERR_PRINT(L"\nNo EFI execution path specified. Halting!\n");
 				EfiCpuHalt();
 			}
-		}
+		}		
 
 		if (fileStr != NULL) {
 			EfiSetVar(L"DcsExecCmd", NULL, fileStr, (StrLen(fileStr) + 1) * 2, EFI_VARIABLE_BOOTSERVICE_ACCESS);

@@ -236,7 +236,7 @@ PlatformGetAuthDataByType(
 			continue;
 		}
 		*data = buf;
-		*len = mark->AuthDataSize * 1024 * 128;
+		*len = ((UINTN) mark->AuthDataSize) * 1024 * 128;
 		*secRegionHandle = gBIOHandles[gBioIndexAuth];
 		return EFI_SUCCESS;
 	}

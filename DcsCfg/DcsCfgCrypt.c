@@ -880,7 +880,13 @@ BlockRangeWipe(
 	pos = start;
 	do {
 		rd = (UINTN)((remains > CRYPT_BUF_SECTORS) ? CRYPT_BUF_SECTORS : remains);
-		RandgetBytes(buf, (UINT32)(rd << 9), FALSE);
+
+		if (!RandgetBytes(buf, (UINT32)(rd << 9), FALSE)) {
+			ERR_PRINT(L"No randoms. Wipe stopped.\n");
+			res = EFI_CRC_ERROR;
+			MEM_FREE(buf);
+			return res;
+		}	
 		res = bio->WriteBlocks(bio, bio->Media->MediaId, pos, rd << 9, buf);
 		if (EFI_ERROR(res)) {
 			ERR_PRINT(L"Write error: %r\n", res);
@@ -892,6 +898,7 @@ BlockRangeWipe(
 		OUT_PRINT(L"%lld %lld       \r", pos, remains);
 	} while (remains > 0);
 	OUT_PRINT(L"\nDone\n", pos, remains);
+	MEM_FREE(buf);
 	return res;
 }
 
@@ -1077,11 +1084,18 @@ UpdateDcsBoot() {
 		DevicePath = DevicePathFromHandle(hDisk);
 		len = GetDevicePathSize(DevicePath);
 //		res = EfiSetVar(DCS_BOOT_STR, NULL, DevicePath, len, EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS);
-		FileSave(NULL, DCS_BOOT_STR, DevicePath, len);
-		OUT_PRINT(L"Boot:");
-		EfiPrintDevicePath(hDisk);
-		OUT_PRINT(L"\n");
-	}
+		res = FileSave(NULL, DCS_BOOT_STR, DevicePath, len);
+		if (EFI_ERROR(res)) {
+			OUT_PRINT(L" %r\n", res);
+			return;
+		}
+		else
+		{
+			OUT_PRINT(L"Boot:");
+			EfiPrintDevicePath(hDisk);
+			OUT_PRINT(L"\n");
+		}
+	}	
 	OUT_PRINT(L" %r\n", res);
 }
 

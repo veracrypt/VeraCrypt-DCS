@@ -350,8 +350,8 @@ DcsCfgMain(
 		res = EFI_BUFFER_TOO_SMALL;
 		temp = MEM_ALLOC(size);
 		if (temp == NULL ||
-			EFI_ERROR(res = RndGetBytes(temp, size) ||
-				EFI_ERROR(res = FileSave(NULL, (CHAR16*)optFile, temp, size)))
+			EFI_ERROR(res = RndGetBytes(temp, size)) ||
+				EFI_ERROR(res = FileSave(NULL, (CHAR16*)optFile, temp, size))
 			) {
 			ERR_PRINT(L"Random: %r\n", res);
 		}

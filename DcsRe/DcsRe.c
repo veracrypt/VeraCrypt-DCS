@@ -47,7 +47,7 @@ AppendMenu(
 	item = (PMENU_ITEM)MEM_ALLOC(sizeof(MENU_ITEM));
 	if (item == NULL) return item;
 	item->Action = action;
-	StrCat(item->Text, text);
+	StrCatS(item->Text, sizeof (item->Text) / sizeof (CHAR16), text);
 	item->Select = select;
 	if (menu != NULL) {
 		menu->Next = item;

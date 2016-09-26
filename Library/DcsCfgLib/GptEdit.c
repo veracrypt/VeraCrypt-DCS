@@ -143,7 +143,7 @@ GptCheckEntryArray(
 	UINT32      Crc;
 	UINTN       Size;
 
-	Size = PartHeader->NumberOfPartitionEntries * PartHeader->SizeOfPartitionEntry;
+	Size = (UINTN) PartHeader->NumberOfPartitionEntries * (UINTN) PartHeader->SizeOfPartitionEntry;
 	Status = gBS->CalculateCrc32(Entrys, Size, &Crc);
 	if (EFI_ERROR(Status)) {
 		return EFI_CRC_ERROR;
@@ -162,7 +162,7 @@ GptUpdateCRC(
 	UINT32      Crc;
 	UINTN       Size;
 
-	Size = PartHeader->NumberOfPartitionEntries * PartHeader->SizeOfPartitionEntry;
+	Size = (UINTN) PartHeader->NumberOfPartitionEntries * (UINTN) PartHeader->SizeOfPartitionEntry;
 	Status = gBS->CalculateCrc32(Entrys, Size, &Crc);
 	if (EFI_ERROR(Status)) {
 		return Status;
@@ -489,6 +489,10 @@ DeListSaveToFile() {
 				}
 				if (pad > 0) {
 					res = FileWrite(file, pad512buf, &pad, NULL);
+					if (EFI_ERROR(res)) {
+						ERR_PRINT(L"Write: %r\n", res);
+						goto error;
+					}
 				}
 			}
 		}

@@ -737,6 +737,7 @@ OSBackupKeyLoad(
 	if (EFI_ERROR(res) || SecRegionSize < 512) {
 		SecRegionSize = 0;
 		MEM_FREE(SecRegionData);
+		SecRegionData = NULL;
 	}
 	if (SecRegionSize == 0) {
 		res = PlatformGetAuthData(&SecRegionData, &SecRegionSize, &SecRegionHandle);
@@ -757,6 +758,7 @@ OSBackupKeyLoad(
 			SecRegionOffset += 128 * 1024;
 			if (SecRegionOffset > SecRegionSize) {
 				MEM_FREE(SecRegionData);
+				SecRegionData = NULL;
 				SecRegionOffset = 0;
 				res = PlatformGetAuthData(&SecRegionData, &SecRegionSize, &SecRegionHandle);
 				if (EFI_ERROR(res)) {
@@ -819,6 +821,8 @@ OSBackupKeyLoad(
 
 error:
 	MEM_FREE(SecRegionData);
+	SecRegionData = NULL;
+	SecRegionSize = 0;
 	return res;
 }
 
@@ -847,6 +851,8 @@ OSRestoreKey()
 
 error: 
 	MEM_FREE(SecRegionData);
+	SecRegionData = NULL;
+	SecRegionSize = 0;
 	return res;
 }
 

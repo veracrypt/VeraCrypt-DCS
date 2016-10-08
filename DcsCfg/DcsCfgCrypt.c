@@ -168,7 +168,7 @@ ChangePassword(
 		}
 		VCAskPwd(AskPwdConfirm, &confirmPassword);
 		if (gAuthPwdCode == AskPwdRetCancel) {
-			burn(&newPassword, sizeof(newPassword));
+			MEM_BURN(&newPassword, sizeof(newPassword));
 			return EFI_NOT_READY;
 		}
 		if (newPassword.Length == confirmPassword.Length) {
@@ -200,8 +200,8 @@ ChangePassword(
 		FALSE);
 		
 		
-	burn(&newPassword, sizeof(newPassword));
-	burn(&confirmPassword, sizeof(confirmPassword));
+	MEM_BURN(&newPassword, sizeof(newPassword));
+	MEM_BURN(&confirmPassword, sizeof(confirmPassword));
 
 	if (vcres != 0) {
 		ERR_PRINT(L"header create error(%x)\n", vcres);

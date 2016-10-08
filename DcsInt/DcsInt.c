@@ -156,8 +156,8 @@ PrepareBootParams(
 	SetSecRegionParamsMemory();
 
 	// Clean auth data
-	burn(&gAuthPassword, sizeof(gAuthPassword));
-	burn(&gAuthPim, sizeof(gAuthPim));
+	MEM_BURN(&gAuthPassword, sizeof(gAuthPassword));
+	MEM_BURN(&gAuthPim, sizeof(gAuthPim));
 
 	return EFI_SUCCESS;
 }
@@ -536,7 +536,7 @@ SecRegionChangePwd() {
 		}
 		VCAskPwd(AskPwdConfirm, &confirmPassword);
 		if (gAuthPwdCode == AskPwdRetCancel) {
-			burn(&newPassword, sizeof(newPassword));
+			MEM_BURN(&newPassword, sizeof(newPassword));
 			return EFI_NOT_READY;
 		}
 		if (newPassword.Length == confirmPassword.Length) {
@@ -591,8 +591,8 @@ SecRegionChangePwd() {
 	ERR_PRINT(L"Update (%r)\n", Status);
 
 ret:
-	burn(&newPassword, sizeof(newPassword));
-	burn(&confirmPassword, sizeof(confirmPassword));
+	MEM_BURN(&newPassword, sizeof(newPassword));
+	MEM_BURN(&confirmPassword, sizeof(confirmPassword));
 	return Status;
 }
 
@@ -922,15 +922,15 @@ VirtualNotifyEvent(
 {
 	// Clean all sensible info and keys before transfer to OS
 	if (SecRegionCryptInfo != NULL) {
-		burn(SecRegionCryptInfo, sizeof(*SecRegionCryptInfo));
+		MEM_BURN(SecRegionCryptInfo, sizeof(*SecRegionCryptInfo));
 	}
 
 	if (gRnd != NULL) {
-		burn(gRnd, sizeof(*gRnd));
+		MEM_BURN(gRnd, sizeof(*gRnd));
 	}
 
 	if (SecRegionData != NULL) {
-		burn(SecRegionData, SecRegionSize);
+		MEM_BURN(SecRegionData, SecRegionSize);
 	}
 }
 

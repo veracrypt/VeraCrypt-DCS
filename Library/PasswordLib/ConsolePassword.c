@@ -116,7 +116,7 @@ AskConsolePwdInt(
 	} while (key.UnicodeChar != CHAR_CARRIAGE_RETURN);
 
 	if (length != NULL) *length = count;
-	burn (&key, sizeof (key));
+	MEM_BURN (&key, sizeof (key));
 	// Set end of line
 	if (asciiLine != NULL) {
 		asciiLine[count] = '\0';

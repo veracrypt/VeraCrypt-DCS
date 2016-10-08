@@ -903,8 +903,8 @@ DeListPwdCacheEdit()
 	DePwdCache->CRC = 0;
 	res =gBS->CalculateCrc32(DePwdCache, 512, &crc);
 	DePwdCache->CRC = crc;
-	burn (&pwd, sizeof(pwd));
-	burn (&pim, sizeof(pim));
+	MEM_BURN (&pwd, sizeof(pwd));
+	MEM_BURN (&pim, sizeof(pim));
 	return res;
 }
 

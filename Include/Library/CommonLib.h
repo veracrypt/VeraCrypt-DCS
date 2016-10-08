@@ -32,6 +32,7 @@ https://opensource.org/licenses/LGPL-3.0
 #define MEM_ALLOC MemAlloc
 #define MEM_FREE MemFree
 #define MEM_REALLOC MemRealloc
+#define MEM_BURN(ptr,count) do { volatile char *burnPtr = (volatile char *)(ptr); size_t burnCount = (size_t) count; while (burnCount--) *burnPtr++ = 0; } while (0)
 
 VOID*
 MemAlloc(

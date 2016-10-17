@@ -102,7 +102,11 @@ SelectEfiVolume()
 	for (i = 0; i < gFSCount; ++i) {
 		res = FileOpenRoot(gFSHandles[i], &file);
 		if(EFI_ERROR(res)) continue;
+#ifdef _M_X64
 		if (!EFI_ERROR(FileExist(file, L"EFI\\Boot\\bootx64.efi"))) {
+#else
+		if (!EFI_ERROR(FileExist(file, L"EFI\\Boot\\bootia32.efi"))) {
+#endif
 			efiVolumesCount++;
 			efiVolumes[i] = file;
 			if (gFSHandles[i] != startHandle) {
@@ -141,7 +145,11 @@ SelectEfiVolume()
 //////////////////////////////////////////////////////////////////////////
 EFI_STATUS
 ActionBootWinPE() {
+#ifdef _M_X64
 	return EfiExec(NULL, L"EFI\\Boot\\WinPE_bootx64.efi");
+#else
+	return EfiExec(NULL, L"EFI\\Boot\\WinPE_bootia32.efi");
+#endif
 }
 
 EFI_STATUS
@@ -298,7 +306,11 @@ DcsReMain(
 		item = AppendMenu(item, L"Boot VeraCrypt loader from rescue disk", 'v', ActionDcsBoot);
 	}
 
+#ifdef _M_X64
 	if (!EFI_ERROR(FileExist(NULL, L"EFI\\Boot\\WinPE_bootx64.efi"))) {
+#else
+	if (!EFI_ERROR(FileExist(NULL, L"EFI\\Boot\\WinPE_bootia32.efi"))) {
+#endif
 		item = AppendMenu(item, L"Boot Windows PE from rescue disk", 'w', ActionBootWinPE);
 	}
 

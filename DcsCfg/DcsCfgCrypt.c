@@ -124,6 +124,7 @@ TryHeaderDecrypt(
 	OUT_PRINT(L"Start %lld length %lld\nVolumeSize %lld\nhiddenVolumeSize %lld\nflags 0x%x\n",
 		cryptoInfo->EncryptedAreaStart.Value, (uint64)cryptoInfo->EncryptedAreaLength.Value,
 		cryptoInfo->VolumeSize,
+		cryptoInfo->hiddenVolumeSize,
 		cryptoInfo->HeaderFlags
 		);
 	if(rci != NULL) *rci = cryptoInfo;

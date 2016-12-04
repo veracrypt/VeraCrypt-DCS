@@ -23,61 +23,11 @@ https://opensource.org/licenses/LGPL-3.0
 //////////////////////////////////////////////////////////////////////////
 // Menu
 //////////////////////////////////////////////////////////////////////////
-typedef EFI_STATUS(*MENU_ACTION)();
-
-typedef struct _MENU_ITEM MENU_ITEM;
-typedef struct _MENU_ITEM {
-	CHAR16         Text[128];
-	CHAR16         Select;
-	MENU_ACTION    Action;
-	MENU_ITEM      *Next;
-} MENU_ITEM, *PMENU_ITEM;
 
 BOOLEAN    gContiniue = TRUE;
 PMENU_ITEM gMenu = NULL;
 
-PMENU_ITEM
-AppendMenu(
-	IN PMENU_ITEM  menu,
-	IN CHAR16     *text,
-	IN CHAR16     select,
-	IN MENU_ACTION action
-	) {
-	PMENU_ITEM item;
-	item = (PMENU_ITEM)MEM_ALLOC(sizeof(MENU_ITEM));
-	if (item == NULL) return item;
-	item->Action = action;
-	StrCatS(item->Text, sizeof (item->Text) / sizeof (CHAR16), text);
-	item->Select = select;
-	if (menu != NULL) {
-		menu->Next = item;
-	}
-	return item;
-}
 
-VOID
-PrintMenu(
-	PMENU_ITEM head) {
-	PMENU_ITEM menu;
-	UINTN i = 0;
-	menu = head;
-	while (menu != NULL) {
-		OUT_PRINT(L"%H%c%N) %s\n", menu->Select, &menu->Text);
-		i++;
-		if (i == 22) {
-			ConsoleShowTip(L"Pause 60s", 60000000);
-			i = 0;
-		}
-		menu = menu->Next;
-	}
-	OUT_PRINT(L"[");
-	menu = head;
-	while (menu != NULL) {
-		OUT_PRINT(L"%H%c%N", menu->Select);
-		menu = menu->Next;
-	}
-	OUT_PRINT(L"]:");
-}
 //////////////////////////////////////////////////////////////////////////
 // EFI volume
 //////////////////////////////////////////////////////////////////////////
@@ -144,7 +94,7 @@ SelectEfiVolume()
 // Actions
 //////////////////////////////////////////////////////////////////////////
 EFI_STATUS
-ActionBootWinPE() {
+ActionBootWinPE(IN VOID* ctx) {
 #ifdef _M_X64
 	return EfiExec(NULL, L"EFI\\Boot\\WinPE_bootx64.efi");
 #else
@@ -153,12 +103,12 @@ ActionBootWinPE() {
 }
 
 EFI_STATUS
-ActionShell() {
+ActionShell(IN VOID* ctx) {
 	return EfiExec(NULL, L"EFI\\Shell\\Shell.efi");
 }
 
 EFI_STATUS
-ActionDcsBoot() {
+ActionDcsBoot(IN VOID* ctx) {
 	SelectEfiVolume();
 	if (EfiBootVolume == NULL) return EFI_NOT_READY;
 	return EfiExec(gFSHandles[EfiBootVolumeIndex], L"EFI\\VeraCrypt\\DcsBoot.efi");
@@ -176,7 +126,7 @@ CHAR16* DcsBootBins[] = {
 Copy DCS binaries from rescue disk to EFI boot volume
 */
 EFI_STATUS
-ActionRestoreDcsLoader() {
+ActionRestoreDcsLoader(IN VOID* ctx) {
 	EFI_STATUS res = EFI_NOT_READY;
 	UINTN i;
 	SelectEfiVolume();
@@ -194,7 +144,7 @@ CHAR16* sDcsBootEfiDesc = L"VeraCrypt(DCS) loader";
 Update boot menu
 */
 EFI_STATUS
-ActionRestoreDcsBootMenu() 
+ActionRestoreDcsBootMenu(IN VOID* ctx)
 {
 	EFI_STATUS res = EFI_NOT_READY;
 	SelectEfiVolume();
@@ -207,7 +157,7 @@ ActionRestoreDcsBootMenu()
 }
 
 EFI_STATUS
-ActionRemoveDcsBootMenu()
+ActionRemoveDcsBootMenu(IN VOID* ctx)
 {
 	EFI_STATUS res = EFI_NOT_READY;
 	BootMenuItemRemove(L"BootDC5B");
@@ -219,7 +169,7 @@ ActionRemoveDcsBootMenu()
 Copy DcsProp from rescue disk to EFI boot volume
 */
 EFI_STATUS
-ActionRestoreDcsProp() {
+ActionRestoreDcsProp(IN VOID* ctx) {
 	SelectEfiVolume();
 	if (EfiBootVolume == NULL) return EFI_NOT_READY;
 	return FileCopy(NULL, L"EFI\\VeraCrypt\\DcsProp", EfiBootVolume, L"EFI\\VeraCrypt\\DcsProp", 1024*1024);
@@ -233,27 +183,27 @@ CHAR16* sOSRestoreKey = OPT_OS_RESTORE_KEY;
 CHAR16* sDcsCfg = L"EFI\\VeraCrypt\\DcsCfg.dcs";
 
 EFI_STATUS
-ActionRestoreHeader() {
+ActionRestoreHeader(IN VOID* ctx) {
 	EFI_STATUS res = EFI_NOT_READY;
 	res = EfiSetVar(L"dcscfgcmd", NULL, sOSRestoreKey, StrSize(sOSRestoreKey), EFI_VARIABLE_BOOTSERVICE_ACCESS);
 	return EfiExec(NULL, sDcsCfg);
 }
 
 EFI_STATUS
-ActionDecryptOS() {
+ActionDecryptOS(IN VOID* ctx) {
 	EFI_STATUS res = EFI_NOT_READY;
 	res = EfiSetVar(L"dcscfgcmd", NULL, sOSDecrypt, StrSize(sOSDecrypt), EFI_VARIABLE_BOOTSERVICE_ACCESS);
 	return EfiExec(NULL, sDcsCfg);
 }
 
 EFI_STATUS
-ActionExit() {
+ActionExit(IN VOID* ctx) {
 	gContiniue = FALSE;
 	return EFI_SUCCESS;
 }
 
 EFI_STATUS
-ActionHelp() {
+ActionHelp(IN VOID* ctx) {
 OUT_PRINT(L"\
 %HRescue disk for VeraCrypt OS encryption%N\n\r\
 Help message to be defined\n\r\
@@ -288,42 +238,38 @@ DcsReMain(
 		return res;
    }
 
-	item = AppendMenu(NULL, L"Decrypt OS", 'd', ActionDecryptOS);
+	item = DcsMenuAppend(NULL, L"Decrypt OS", 'd', ActionDecryptOS, NULL);
 	gMenu = item;
-	item = AppendMenu(item, L"Restore VeraCrypt loader to boot menu", 'm', ActionRestoreDcsBootMenu);
-	item = AppendMenu(item, L"Remove VeraCrypt loader from boot menu", 'z' , ActionRemoveDcsBootMenu);
+	item = DcsMenuAppend(item, L"Restore VeraCrypt loader to boot menu", 'm', ActionRestoreDcsBootMenu, NULL);
+	item = DcsMenuAppend(item, L"Remove VeraCrypt loader from boot menu", 'z' , ActionRemoveDcsBootMenu, NULL);
 
 	if (!EFI_ERROR(FileExist(NULL, L"EFI\\VeraCrypt\\DcsProp"))) {
-		item = AppendMenu(item, L"Restore VeraCrypt loader configuration to system disk", 'c', ActionRestoreDcsProp);
+		item = DcsMenuAppend(item, L"Restore VeraCrypt loader configuration to system disk", 'c', ActionRestoreDcsProp, NULL);
 	}
 
 	if (!EFI_ERROR(FileExist(NULL, L"EFI\\VeraCrypt\\svh_bak"))) {
-		item = AppendMenu(item, L"Restore OS header keys", 'k', ActionRestoreHeader);
+		item = DcsMenuAppend(item, L"Restore OS header keys", 'k', ActionRestoreHeader, NULL);
 	}
 
 	if (!EFI_ERROR(FileExist(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi"))) {
-		item = AppendMenu(item, L"Restore VeraCrypt loader binaries to system disk", 'r', ActionRestoreDcsLoader);
-		item = AppendMenu(item, L"Boot VeraCrypt loader from rescue disk", 'v', ActionDcsBoot);
+		item = DcsMenuAppend(item, L"Restore VeraCrypt loader binaries to system disk", 'r', ActionRestoreDcsLoader, NULL);
+		item = DcsMenuAppend(item, L"Boot VeraCrypt loader from rescue disk", 'v', ActionDcsBoot, NULL);
 	}
 
-#ifdef _M_X64
 	if (!EFI_ERROR(FileExist(NULL, L"EFI\\Boot\\WinPE_bootx64.efi"))) {
-#else
-	if (!EFI_ERROR(FileExist(NULL, L"EFI\\Boot\\WinPE_bootia32.efi"))) {
-#endif
-		item = AppendMenu(item, L"Boot Windows PE from rescue disk", 'w', ActionBootWinPE);
+		item = DcsMenuAppend(item, L"Boot Windows PE from rescue disk", 'w', ActionBootWinPE, NULL);
 	}
 
 	if (!EFI_ERROR(FileExist(NULL, L"EFI\\Shell\\Shell.efi"))) {
-		item = AppendMenu(item, L"Boot Shell.efi from rescue disk", 's', ActionShell);
+		item = DcsMenuAppend(item, L"Boot Shell.efi from rescue disk", 's', ActionShell, NULL);
 	}
 
-	item = AppendMenu(item, L"Help", 'h', ActionHelp);
-	item = AppendMenu(item, L"Exit", 'e', ActionExit);
+	item = DcsMenuAppend(item, L"Help", 'h', ActionHelp, NULL);
+	item = DcsMenuAppend(item, L"Exit", 'e', ActionExit, NULL);
 	OUT_PRINT(L"%V%a rescue disk %a%N\n", TC_APP_NAME, VERSION_STRING);
 	gBS->SetWatchdogTimer(0, 0, 0, NULL);
 	do {
-		PrintMenu(gMenu);
+		DcsMenuPrint(gMenu);
 		item = NULL;
 		key.UnicodeChar = 0;
 		while (item == NULL) {
@@ -335,7 +281,7 @@ DcsReMain(
 			}
 		}
 		OUT_PRINT(L"%c\n",key.UnicodeChar);
-		res = item->Action();
+		res = item->Action(item->Context);
 		if (EFI_ERROR(res)) {
 			ERR_PRINT(L"%r\n", res);
 		}

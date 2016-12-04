@@ -22,6 +22,15 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Protocol/AbsolutePointer.h>
 #include <Guid/FileInfo.h>
 
+//////////////////////////////////////////////////////////////////////////
+// Check error 
+//////////////////////////////////////////////////////////////////////////
+extern UINTN gCELine;
+#define CE(ex) gCELine = __LINE__; if(EFI_ERROR(res = ex)) goto err
+
+//////////////////////////////////////////////////////////////////////////
+// defines
+//////////////////////////////////////////////////////////////////////////
 #define FIELD_SIZEOF(t, f) (sizeof(((t*)0)->f))
 #define FIELD_OFFSET(t, f) ((UINTN)(&((t*)0)->f))
 
@@ -32,7 +41,7 @@ https://opensource.org/licenses/LGPL-3.0
 #define MEM_ALLOC MemAlloc
 #define MEM_FREE MemFree
 #define MEM_REALLOC MemRealloc
-#define MEM_BURN(ptr,count) do { volatile char *burnPtr = (volatile char *)(ptr); UINT64 burnCount = (UINT64) count; while (burnCount--) *burnPtr++ = 0; } while (0)
+#define MEM_BURN(ptr,count) do { volatile char *burnPtr = (volatile char *)(ptr); UINTN burnCount = (UINTN) count; while (burnCount--) *burnPtr++ = 0; } while (0)
 
 VOID*
 MemAlloc(
@@ -182,6 +191,11 @@ TouchGetIO(
 #define OUT_PRINT(format, ...) AttrPrintEx(-1,-1, format, ##__VA_ARGS__)
 #define ERR_PRINT(format, ...) AttrPrintEx(-1,-1, L"%E" format L"%N" , ##__VA_ARGS__)
 
+VOID
+PrintBytes(
+	IN UINT8* Data,
+	IN UINT32 Size);
+
 EFI_STATUS
 ConsoleGetOutput(
 	IN EFI_HANDLE handle,
@@ -270,6 +284,33 @@ AsciiStrToGuid(
 	IN  CHAR8     *str
 	);
 
+//////////////////////////////////////////////////////////////////////////
+// Menu
+//////////////////////////////////////////////////////////////////////////
+typedef EFI_STATUS(*MENU_ACTION)(IN VOID *ctx);
+
+typedef struct _MENU_ITEM MENU_ITEM;
+typedef struct _MENU_ITEM {
+	CHAR16         Text[128];
+	CHAR16         Select;
+	MENU_ACTION    Action;
+	VOID*          Context;
+	MENU_ITEM      *Next;
+} MENU_ITEM, *PMENU_ITEM;
+
+PMENU_ITEM
+DcsMenuAppend(
+	IN PMENU_ITEM  menu,
+	IN CHAR16     *text,
+	IN CHAR16     select,
+	IN MENU_ACTION action,
+	IN VOID*       actionContext
+	);
+
+VOID
+DcsMenuPrint(
+	IN  PMENU_ITEM head
+	);
 
 //////////////////////////////////////////////////////////////////////////
 // Attribute print

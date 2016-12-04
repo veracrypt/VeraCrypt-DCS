@@ -26,24 +26,25 @@ https://opensource.org/licenses/Apache-2.0
 #include "common/Xml.h"
 #include "common/Crc.h"
 #include "BootCommon.h"
+#include "Library/DcsTpmLib.h"
 
 //////////////////////////////////////////////////////////////////////////
 // Config
 //////////////////////////////////////////////////////////////////////////
-char *ConfigBuffer = NULL;
-UINTN	ConfigBufferSize = 0;
+char *gConfigBuffer = NULL;
+UINTN	gConfigBufferSize = 0;
 
 BOOL ConfigRead(char *configKey, char *configValue, int maxValueSize)
 {
 	char *xml;
 
-	if (ConfigBuffer == NULL) {
-		if (FileLoad(NULL, L"\\EFI\\VeraCrypt\\DcsProp", &ConfigBuffer, &ConfigBufferSize) != EFI_SUCCESS) {
+	if (gConfigBuffer == NULL) {
+		if (FileLoad(NULL, L"\\EFI\\VeraCrypt\\DcsProp", &gConfigBuffer, &gConfigBufferSize) != EFI_SUCCESS) {
 			return FALSE;
 		}
 	}
 
-	xml = ConfigBuffer;
+	xml = gConfigBuffer;
 	if (xml != NULL)
 	{
 		xml = XmlFindElementByAttributeValue(xml, "config", "key", configKey);
@@ -246,48 +247,145 @@ VCAuthLoadConfig()
 
 }
 
+//////////////////////////////////////////////////////////////////////////
+// Configuration menu
+//////////////////////////////////////////////////////////////////////////
+PMENU_ITEM          gCfgMenu = NULL;
+BOOLEAN             gCfgMenuContinue = TRUE;
+
+EFI_STATUS
+ActionCfgReboot(IN VOID *ctx) {
+	gST->RuntimeServices->ResetSystem(EfiResetCold, EFI_SUCCESS, 0, NULL);
+	return EFI_DEVICE_ERROR;
+}
+
+EFI_STATUS
+ActionCfgTpm(IN VOID *ctx) {
+	return gTpm->Configure(gTpm);
+}
+
+EFI_STATUS
+ActionBoot(IN VOID *ctx) {
+	gCfgMenuContinue = FALSE;
+	gAuthPwdCode = AskPwdRetCancel;
+	return EFI_SUCCESS;
+}
+
+EFI_STATUS
+ActionNewPassword(IN VOID *ctx) {
+	gCfgMenuContinue = FALSE;
+	gAuthPwdCode = AskPwdRetLogin;
+	return EFI_SUCCESS;
+}
+
+VOID 
+CfgMenuCreate() {
+	PMENU_ITEM          item = NULL;
+	item = DcsMenuAppend(item, L"Boot", 'b', ActionBoot, NULL);
+	gCfgMenu = item;
+	item = DcsMenuAppend(item, L"Hard reset", 'r', ActionCfgReboot, NULL);
+	item = DcsMenuAppend(item, L"New password", 'n', ActionNewPassword, NULL);
+	if (gTpm != NULL) {
+		item = DcsMenuAppend(item, L"Configure TPM", 't', ActionCfgTpm, NULL);
+	}
+}
+
 
 VOID
 VCAskPwd(
 	IN	 UINTN	pwdType,
 	OUT Password* vcPwd) {
+	BOOL pwdReady;
 	if (gAuthPasswordMsg == NULL) VCAuthLoadConfig();
-	if (gAuthPasswordType == 1 &&
-		gGraphOut != NULL &&
-		((gTouchPointer != NULL) || (gTouchSimulate != 0))) {
-		AskPictPwdInt(pwdType, sizeof(vcPwd->Text), vcPwd->Text, &vcPwd->Length, &gAuthPwdCode);
-	}	else {
-		switch (pwdType) {
-		case AskPwdNew:
-			OUT_PRINT(L"New password:");
-			break;
-		case AskPwdConfirm:
-			OUT_PRINT(L"Confirm password:");
-			break;
-		case AskPwdLogin:
-		default:
-			OUT_PRINT(L"%a", gAuthPasswordMsg);
-			break;
+	do {
+		pwdReady = TRUE;
+		if (pwdType == AskPwdNew) {
+			EFI_INPUT_KEY key;
+			key = KeyWait(L"Press 'c' to configure, others to skip %1d\r", 9, 0, 0);
+			if (key.UnicodeChar == 'c') {
+				PMENU_ITEM          item = NULL;
+				EFI_STATUS          res;
+				OUT_PRINT(L"\n%V%a %a configuration%N\n", TC_APP_NAME, VERSION_STRING);
+				if (gCfgMenu == NULL) CfgMenuCreate();
+				do {
+					DcsMenuPrint(gCfgMenu);
+					item = NULL;
+					key.UnicodeChar = 0;
+					while (item == NULL) {
+						item = gCfgMenu;
+						key = GetKey();
+						while (item != NULL) {
+							if (item->Select == key.UnicodeChar) break;
+							item = item->Next;
+						}
+					}
+					OUT_PRINT(L"%c\n", key.UnicodeChar);
+					res = item->Action(item->Context);
+					if (EFI_ERROR(res)) {
+						ERR_PRINT(L"%r\n", res);
+					}
+				} while (gCfgMenuContinue);
+				if (gAuthPwdCode == AskPwdRetCancel) {
+					return;
+				}
+			}
 		}
-		AskConsolePwdInt(&vcPwd->Length, vcPwd->Text, &gAuthPwdCode, sizeof(vcPwd->Text), gPasswordVisible);
-	}
 
-	if (gAuthPwdCode == AskPwdRetCancel) {
-		return;
-	}
-
-	if (gPlatformLocked) {
-		if (gPlatformKeyFile == NULL) {
-			ERR_PRINT(L"Platform key file absent\n");
-		}	else {
-			ApplyKeyFile(vcPwd, gPlatformKeyFile, gPlatformKeyFileSize);
+		if (gAuthPasswordType == 1 &&
+			gGraphOut != NULL &&
+			((gTouchPointer != NULL) || (gTouchSimulate != 0))) {
+			AskPictPwdInt(pwdType, sizeof(vcPwd->Text), vcPwd->Text, &vcPwd->Length, &gAuthPwdCode);
 		}
-	}
+		else {
+			switch (pwdType) {
+			case AskPwdNew:
+				OUT_PRINT(L"New password:");
+				break;
+			case AskPwdConfirm:
+				OUT_PRINT(L"Confirm password:");
+				break;
+			case AskPwdLogin:
+			default:
+				OUT_PRINT(L"%a", gAuthPasswordMsg);
+				break;
+			}
+			AskConsolePwdInt(&vcPwd->Length, vcPwd->Text, &gAuthPwdCode, sizeof(vcPwd->Text), gPasswordVisible);
+		}
 
-	if (gTPMLocked) {
-		// TO DO
-		ERR_PRINT(L"TPM lock is not implemented\n");
-	}
+		if (gAuthPwdCode == AskPwdRetCancel) {
+			return;
+		}
+
+		if (gSCLocked) {
+			ERR_PRINT(L"Smart card is not configured\n");
+		}
+
+		if (gPlatformLocked) {
+			if (gPlatformKeyFile == NULL) {
+				ERR_PRINT(L"Platform key file is absent\n");
+			}
+			else {
+				ApplyKeyFile(vcPwd, gPlatformKeyFile, gPlatformKeyFileSize);
+			}
+		}
+
+		if (gTPMLocked) {
+			if (gTpm != NULL) {
+				pwdReady = !EFI_ERROR(gTpm->Apply(gTpm, vcPwd));
+				if (!pwdReady) {
+					ERR_PRINT(L"TPM error: DCS configuration ");
+					if (!gTpm->IsConfigured(gTpm)) {
+						ERR_PRINT(L"absent\n");
+					}
+					else {
+						ERR_PRINT(L"locked\n");
+					}
+				}
+			}	else {
+				ERR_PRINT(L"No TPM found\n");
+			}
+		}
+	} while (!pwdReady);
 }
 
 VOID

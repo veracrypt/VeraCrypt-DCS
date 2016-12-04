@@ -161,6 +161,19 @@ TestTouch();
 EFI_STATUS
 DcsInteractiveSetup();
 
+//////////////////////////////////////////////////////////////////////////
+// TPM
+//////////////////////////////////////////////////////////////////////////
+EFI_STATUS
+Tpm12ListPcrs(
+	UINT32 sPcr,
+	UINT32 ePcr
+	);
 
+EFI_STATUS
+Tpm12NvList();
+
+EFI_STATUS
+Tpm12DcsConfigure();
 
 #endif // DcsCfg_h__

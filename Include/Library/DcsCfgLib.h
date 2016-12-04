@@ -118,7 +118,9 @@ enum RndGeneratorTypes {
 	RndTypeNone = 0,
 	RndTypeFile,
 	RndTypeRDRand,
-	RndTypeDtrmHmacSha512
+	RndTypeDtrmHmacSha512,
+	RndTypeOpenSSL,
+	RndTypeTpm
 };
 
 #define RND_HEADER_SIGN SIGNATURE_64('D','C','S','_','R','A','N','D')
@@ -186,6 +188,7 @@ EFI_STATUS
 RndInit(
 	IN UINTN   rndType,
 	IN VOID*   Context,
+	IN UINTN   ContextSize,
 	OUT DCS_RND **rnd);
 
 // Serialize rnd with state to/from memory

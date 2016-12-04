@@ -79,11 +79,13 @@ LIB|Twofish_x64.obj|*
 [Packages]
   MdePkg/MdePkg.dec
   DcsPkg/DcsPkg.dec
+  CryptoPkg/CryptoPkg.dec
 
 [LibraryClasses]
   MemoryAllocationLib
   UefiLib
   RngLib
+  BaseCryptLib
 
 [Protocols]
 

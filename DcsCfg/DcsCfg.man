@@ -35,16 +35,20 @@ DcsCfg -ds <BN> -wipe <start> <end>
 
 .SH OPTIONS
 
+ -dc - check devices (try to authorize)
  -dl - block device list (order numbers are used in -db and -se)
  -ds <BN> – select device
  -de <BN> – end device to check (starts from select)
- -dc check devices (try to authorize)
  -db <BN> - boot partition selection
  -aa - ask authorization parameters
  -ach - create header on block device
  -vec <BN> - block device encrypt
  -vdc <BN> - block device decrypt
  -vcp <BN> - block device change password
+ -rnd <type> <param>- select rnadom type (0 - none, 1 - file, 2- rdrand, 3 HMAC, 4 OPENSSL 5 TPM)
+ -rndgen <file> - generate random file
+ -rndload - load rnd generator state from file
+ -rndsave - save rnd generator state to file
  -ul - USB device list
  -tl - touch device 
  -tt <TN> - Test touch device
@@ -55,18 +59,29 @@ DcsCfg -ds <BN> -wipe <start> <end>
  -bt - Beep device test
  -setup - interactive setup
  -pl - GPT list
- -pf <gpt_file_name> - file with GPT
+ -pf <gpt_file_name> - file with GPT and params
  -ps - save GPT to file
+ -pz - delete info from GPT to file
  -pa - applay GPT from file to disk
  -pe - encrypt GPT
  -pd - decrypt GPT
  -pnt <PNT> - partition number as template (from -pl)
  -phide <PHS> <PHE> - hide partions from <PHS> to <PHE>; <PHS> - start sector of hidden partition, <PHE> - end sector of hidden partition
+ -pedt <PN> - partition number to edit(from -pl)
+ -pexec - edit executable parameter
+ -prndsave - save random state to params
+ -prndload - load random state from params
+ -pwdcache - edit password cache in params
  -kp <key_file_name> - keys file of platform to save
  -srm <SRT> - mark disk as security regions container(write CRC of platform to 61 sector); <SRT> - number of possible security regions
  -srw <SRT> - wipe security regions data with random data (write random data [62, 62 + 256 * SRT]) it has to be free! check first partition start sector!
  -sra <SRN> - add <gpt_file_name> to security region <SRN>
  -wipe <SS SE> - write random data to sectors range [SS,SE]
+ -osdecrypt - decrypt OS (rescue)
+ -osrestorekey - restore key (rescue)
+ -tpmpcrs <s> <e>- print PCRs
+ -tpmnvlist - List NV regions in TPM
+ -tpmcfg - Configure TPM
 
  .SH DESCRIPTION
 

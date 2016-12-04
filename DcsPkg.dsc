@@ -44,6 +44,10 @@
 
   UefiUsbLib|MdePkg/Library/UefiUsbLib/UefiUsbLib.inf
 
+  IntrinsicLib|CryptoPkg/Library/IntrinsicLib/IntrinsicLib.inf
+  OpensslLib|CryptoPkg/Library/OpensslLib/OpensslLib.inf
+  BaseCryptLib|CryptoPkg/Library/BaseCryptLib/BaseCryptLib.inf
+
   Tpm12CommandLib|SecurityPkg/Library/Tpm12CommandLib/Tpm12CommandLib.inf
   Tpm12DeviceLib|SecurityPkg/Library/Tpm12DeviceLibTcg/Tpm12DeviceLibTcg.inf
   TpmMeasurementLib|SecurityPkg/Library/DxeTpmMeasurementLib/DxeTpmMeasurementLib.inf
@@ -61,6 +65,7 @@
   PasswordLib|DcsPkg/Library/PasswordLib/PasswordLib.inf
   RngLib|MdePkg/Library/BaseRngLib/BaseRngLib.inf
   DcsCfgLib|DcsPkg/Library/DcsCfgLib/DcsCfgLib.inf
+  DcsTpmLib|DcsPkg/Library/DcsTpmLib/DcsTpmLib.inf
   VeraCryptLib|DcsPkg/Library/VeraCryptLib/VeraCryptLib.inf
 
  [LibraryClasses.common.UEFI_APPLICATION]

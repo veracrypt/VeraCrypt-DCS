@@ -34,51 +34,53 @@ https://opensource.org/licenses/LGPL-3.0
 //////////////////////////////////////////////////////////////////////////
 // Main
 //////////////////////////////////////////////////////////////////////////
-#define OPT_DISK_CHECK L"-dc"
-#define OPT_DISK_LIST L"-dl"
-#define OPT_DISK_START L"-ds"
-#define OPT_DISK_END L"-de"
-#define OPT_DISK_BOOT L"-db"
-#define OPT_AUTH_ASK L"-aa"
-#define OPT_AUTH_CREATE_HEADER L"-ach"
-#define OPT_RND L"-rnd"
-#define OPT_RND_GEN L"-rndgen"
-#define OPT_RND_LOAD L"-rndload"
-#define OPT_RND_SAVE L"-rndsave"
-#define OPT_VOLUME_ENCRYPT L"-vec"
-#define OPT_VOLUME_DECRYPT L"-vdc"
-#define OPT_VOLUME_CHANGEPWD L"-vcp"
-#define OPT_USB_LIST L"-ul"
-#define OPT_TOUCH_LIST L"-tl"
-#define OPT_TOUCH_TEST L"-tt"
-#define OPT_GRAPH_LIST L"-gl"
-#define OPT_GRAPH_DEVICE L"-gd"
-#define OPT_GRAPH_MODE L"-gm"
-#define OPT_BEEP_LIST L"-bl"
-#define OPT_BEEP_TEST L"-bt"
-#define OPT_SETUP L"-setup"
-#define OPT_PARTITION_LIST L"-pl"
-#define OPT_PARTITION_FILE L"-pf"
-#define OPT_PARTITION_SAVE L"-ps"
-#define OPT_PARTITION_ZERO L"-pz"
-#define OPT_PARTITION_APPLY L"-pa"
-#define OPT_PARTITION_ENCRYPT L"-pe"
-#define OPT_PARTITION_DECRYPT L"-pd"
-#define OPT_PARTITION_IDX_TEMPLATE L"-pnt"
-#define OPT_PARTITION_HIDE L"-phide"
-#define OPT_PARTITION_EDIT L"-pedt"
-#define OPT_PARTITION_EDIT_EXEC L"-pexec"
-#define OPT_PARTITION_RND_LOAD L"-prndload"
-#define OPT_PARTITION_RND_SAVE L"-prndsave"
+#define OPT_DISK_CHECK					L"-dc"
+#define OPT_DISK_LIST					L"-dl"
+#define OPT_DISK_START					L"-ds"
+#define OPT_DISK_END						L"-de"
+#define OPT_DISK_BOOT					L"-db"
+#define OPT_AUTH_ASK						L"-aa"
+#define OPT_AUTH_CREATE_HEADER		L"-ach"
+#define OPT_RND							L"-rnd"
+#define OPT_RND_GEN						L"-rndgen"
+#define OPT_RND_LOAD						L"-rndload"
+#define OPT_RND_SAVE						L"-rndsave"
+#define OPT_VOLUME_ENCRYPT				L"-vec"
+#define OPT_VOLUME_DECRYPT				L"-vdc"
+#define OPT_VOLUME_CHANGEPWD			L"-vcp"
+#define OPT_USB_LIST						L"-ul"
+#define OPT_TOUCH_LIST					L"-tl"
+#define OPT_TOUCH_TEST					L"-tt"
+#define OPT_GRAPH_LIST					L"-gl"
+#define OPT_GRAPH_DEVICE				L"-gd"
+#define OPT_GRAPH_MODE					L"-gm"
+#define OPT_BEEP_LIST					L"-bl"
+#define OPT_BEEP_TEST					L"-bt"
+#define OPT_SETUP							L"-setup"
+#define OPT_PARTITION_LIST				L"-pl"
+#define OPT_PARTITION_FILE				L"-pf"
+#define OPT_PARTITION_SAVE				L"-ps"
+#define OPT_PARTITION_ZERO				L"-pz"
+#define OPT_PARTITION_APPLY			L"-pa"
+#define OPT_PARTITION_ENCRYPT			L"-pe"
+#define OPT_PARTITION_DECRYPT			L"-pd"
+#define OPT_PARTITION_IDX_TEMPLATE	L"-pnt"
+#define OPT_PARTITION_HIDE				L"-phide"
+#define OPT_PARTITION_EDIT				L"-pedt"
+#define OPT_PARTITION_EDIT_EXEC		L"-pexec"
+#define OPT_PARTITION_RND_LOAD		L"-prndload"
+#define OPT_PARTITION_RND_SAVE		L"-prndsave"
 #define OPT_PARTITION_EDIT_PWD_CACHE L"-pwdcache"
-#define OPT_KEYFILE_PLATFORM L"-kp"
-#define OPT_SECREGION_MARK L"-srm"
-#define OPT_SECREGION_WIPE L"-srw"
-#define OPT_SECREGION_ADD L"-sra"
-#define OPT_WIPE L"-wipe"
-#define OPT_OS_DECRYPT L"-osdecrypt"
-#define OPT_OS_RESTORE_KEY L"-osrestorekey"
-
+#define OPT_KEYFILE_PLATFORM			L"-kp"
+#define OPT_SECREGION_MARK				L"-srm"
+#define OPT_SECREGION_WIPE				L"-srw"
+#define OPT_SECREGION_ADD				L"-sra"
+#define OPT_WIPE							L"-wipe"
+#define OPT_OS_DECRYPT					L"-osdecrypt"
+#define OPT_OS_RESTORE_KEY				L"-osrestorekey"
+#define OPT_TPM_PCRS						L"-tpmpcrs"
+#define OPT_TPM_NVLIST					L"-tpmnvlist"
+#define OPT_TPM_CFG						L"-tpmcfg"
 STATIC CONST SHELL_PARAM_ITEM ParamList[] = {
    { OPT_DISK_LIST,     TypeValue },
    { OPT_DISK_CHECK,    TypeFlag },
@@ -124,6 +126,9 @@ STATIC CONST SHELL_PARAM_ITEM ParamList[] = {
 	{ OPT_WIPE,                 TypeDoubleValue },
 	{ OPT_OS_DECRYPT,     TypeFlag },
 	{ OPT_OS_RESTORE_KEY, TypeFlag },
+	{ OPT_TPM_PCRS,       TypeDoubleValue },
+	{ OPT_TPM_NVLIST,     TypeFlag },
+	{ OPT_TPM_CFG,        TypeFlag },
 	{ NULL, TypeMax }
 };
 
@@ -257,6 +262,30 @@ DcsCfgMain(
 		TestTouch();
 	}
 
+	// TPM
+	if (ShellCommandLineGetFlag(Package, OPT_TPM_PCRS)) {
+		CONST CHAR16* opt1 = NULL;
+		CONST CHAR16* opt2 = NULL;
+		UINT32 sPcr;
+		UINT32 ePcr;
+		opt1 = ShellCommandLineGetValue(Package, OPT_TPM_PCRS);
+		sPcr = (UINT32)StrDecimalToUintn(opt1);
+		opt2 = StrStr(opt1, L" ");
+		if (opt2 != NULL) {
+			opt2++;
+		}
+		ePcr = (UINT32)StrDecimalToUintn(opt2);
+		Tpm12ListPcrs(sPcr, ePcr);
+	}
+
+	if (ShellCommandLineGetFlag(Package, OPT_TPM_NVLIST)) {
+		Tpm12NvList();
+	}
+
+	if (ShellCommandLineGetFlag(Package, OPT_TPM_CFG)) {
+		Tpm12DcsConfigure();
+	}
+
 	// Graph
 	if (ShellCommandLineGetFlag(Package, OPT_GRAPH_DEVICE)) {
 		CONST CHAR16* opt = NULL;
@@ -294,15 +323,20 @@ DcsCfgMain(
 	// Create random
 	if (ShellCommandLineGetFlag(Package, OPT_RND)) {
 		CONST CHAR16* opt = NULL;
-		CONST CHAR16* context = NULL;
+		CHAR16* context = NULL;
 		UINTN rndType;
+		UINTN contextSize = 0;
 		opt = ShellCommandLineGetValue(Package, OPT_RND);
 		rndType = StrDecimalToUintn(opt);
-		context = StrStr(opt, L" ");
+		context = (CHAR16*)StrStr(opt, L" ");
 		if (context != NULL) {
 			context++;
+			contextSize = StrLen(context) * 2;
+			if (!EFI_ERROR(FileExist(NULL, context))) {
+				FileLoad(NULL, context, &context, &contextSize);
+			}
 		}
-		res = RndInit(rndType, (CHAR16*)context, &gRnd);
+		res = RndInit(rndType, context, contextSize, &gRnd);
 		if (EFI_ERROR(res)) {
 			ERR_PRINT(L"Random: %r\n", res);
 		}

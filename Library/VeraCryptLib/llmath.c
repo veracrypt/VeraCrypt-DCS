@@ -227,7 +227,7 @@ __declspec(naked) void __cdecl _aulldiv()
 //////////////////////////////////////////////////////////////////////////
 // Shifts
 //////////////////////////////////////////////////////////////////////////
-__declspec(naked) void __cdecl _aullshr() {
+__declspec(naked) void __cdecl _aullshr1() {
    _asm {
     ;
     ; Checking: Only handle 64bit shifting or more
@@ -264,7 +264,7 @@ _Exit:
   }
 }
 
-__declspec(naked) void __cdecl _allshl() {
+__declspec(naked) void __cdecl _allshl1() {
      _asm {
     ;
     ; Handle shifting of 64 or more bits (return 0)

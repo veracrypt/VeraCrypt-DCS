@@ -23,6 +23,7 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Library/PasswordLib.h>
 #include <Library/BaseLib.h>
 #include <Library/DcsCfgLib.h>
+#include <Library/DcsTpmLib.h>
 
 #include "common/Tcdefs.h"
 #include "common/Crypto.h"
@@ -644,7 +645,7 @@ SecRegionTryDecrypt()
 		} while (SecRegionOffset < SecRegionSize && vcres != 0);
 		if (vcres == 0) {
 			OUT_PRINT(L"Success\n");
-			OUT_PRINT(L"start %lld len %lld\n", SecRegionCryptInfo->EncryptedAreaStart.Value, SecRegionCryptInfo->EncryptedAreaLength.Value);
+			OUT_PRINT(L"Start %d %lld len %lld\n", SecRegionOffset / (1024*128), SecRegionCryptInfo->EncryptedAreaStart.Value, SecRegionCryptInfo->EncryptedAreaLength.Value);
 			break;
 		}	else {
 			ERR_PRINT(L"Authorization failed. Wrong password, PIM or hash. Decrypt error(%x)\n\r", vcres);
@@ -963,6 +964,7 @@ UefiMain(
 			if (key.UnicodeChar != 0) {
 				GetKey();
 			}
+			OUT_PRINT(L"\n");
 		}
 	} else if (gRUD != 0) {
 		// RUD defined
@@ -1020,9 +1022,23 @@ UefiMain(
 		return res;
 	}
 
+	res = GetTpm(); // Try to get TPM
+	if (!EFI_ERROR(res)) {
+		if (gConfigBuffer != NULL) {
+			TpmMeasure(gConfigBuffer, gConfigBufferSize); // Measure configuration
+		}
+		RndInit(RndTypeTpm, NULL, 0, &gRnd);
+		if (gTpm->IsConfigured(gTpm) && !gTpm->IsOpen(gTpm)) {
+			ERR_PRINT(L"TPM is configured but locked. Probably boot chain is modified!\n");
+			KeyWait(L"%1d\r", 9, 0, 0);
+		}
+	}
+
 	DetectX86Features();
 	res = SecRegionTryDecrypt();
-
+	if (gTpm != NULL) {
+		gTpm->Lock(gTpm);
+	}
 	// Reset Console buffer
 	gST->ConIn->Reset(gST->ConIn, FALSE);
 

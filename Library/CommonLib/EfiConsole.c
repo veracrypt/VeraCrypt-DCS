@@ -19,10 +19,27 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Protocol/ConsoleControl.h>
 #include <Protocol/Speaker.h>
 
+UINTN gCELine = 0;
+
 //////////////////////////////////////////////////////////////////////////
 // Print
 //////////////////////////////////////////////////////////////////////////
 
+VOID
+PrintBytes(
+	IN UINT8* Data, 
+	IN UINT32 Size) 
+{
+	UINT32 i;
+	for (i = 0; i < Size; ++i) {
+		UINT32 val = Data[i];
+		OUT_PRINT(L"%02X", val);
+	}
+}
+
+//////////////////////////////////////////////////////////////////////////
+// Input
+//////////////////////////////////////////////////////////////////////////
 VOID 
 FlushInputDelay(
 	IN UINTN delay
@@ -327,6 +344,56 @@ AsciiStrToGuid(
 	return res;
 }
 
+//////////////////////////////////////////////////////////////////////////
+// Console menu
+//////////////////////////////////////////////////////////////////////////
+
+PMENU_ITEM
+DcsMenuAppend(
+	IN PMENU_ITEM  menu,
+	IN CHAR16     *text,
+	IN CHAR16     select,
+	IN MENU_ACTION action,
+	IN VOID*       actionContext
+	) {
+	PMENU_ITEM item;
+	item = (PMENU_ITEM)MEM_ALLOC(sizeof(MENU_ITEM));
+	if (item == NULL) return item;
+	item->Action = action;
+	item->Context = actionContext;
+	StrCat(item->Text, text);
+	item->Select = select;
+	if (menu != NULL) {
+		menu->Next = item;
+	}
+	return item;
+}
+
+VOID
+DcsMenuPrint(
+	IN  PMENU_ITEM head
+	)
+{
+	PMENU_ITEM menu;
+	UINTN i = 0;
+	menu = head;
+	while (menu != NULL) {
+		OUT_PRINT(L"%H%c%N) %s\n", menu->Select, &menu->Text);
+		i++;
+		if (i == 22) {
+			ConsoleShowTip(L"Pause 60s", 60000000);
+			i = 0;
+		}
+		menu = menu->Next;
+	}
+	OUT_PRINT(L"[");
+	menu = head;
+	while (menu != NULL) {
+		OUT_PRINT(L"%H%c%N", menu->Select);
+		menu = menu->Next;
+	}
+	OUT_PRINT(L"]:");
+}
 
 
 //////////////////////////////////////////////////////////////////////////

@@ -18,9 +18,11 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Library/CommonLib.h>
 #include <Library/RngLib.h>
 #include <Library/DcsCfgLib.h>
+#include <Library/BaseCryptLib.h>
 
 #include <common/Pkcs5.h>
 #include <crypto/sha2.h>
+#include "../../Include/Library/DcsTpmLib.h"
 
 DCS_RND* gRnd = NULL;
 
@@ -61,7 +63,8 @@ RndFileGetBytes(
 EFI_STATUS
 RndFileInit(
 	IN DCS_RND* rnd,
-	IN VOID* Context
+	IN VOID* Context,
+	IN UINTN ContextSize
 	)
 {
 	EFI_STATUS res = EFI_NOT_FOUND;
@@ -70,10 +73,8 @@ RndFileInit(
 	rnd->GetBytes = RndFileGetBytes;
 	rnd->Prepare = RndFilePrepare;
 	if (Context != NULL) {
-		res = FileLoad(NULL, (CHAR16*)Context, &rnd->State.File.Data, &rnd->State.File.Size);
-		if (!EFI_ERROR(res)) {
-			return rnd->Prepare(rnd);
-		}
+		rnd->State.File.Data = Context;
+		rnd->State.File.Size = ContextSize;
 	}
 	return res;
 }
@@ -121,7 +122,8 @@ RndRDRandGetBytes(
 EFI_STATUS
 RndRDRandInit(
 	IN DCS_RND* rnd,
-	IN VOID* Context
+	IN VOID* Context,
+	IN UINTN ContextSize
 	)
 {
 	ZeroMem(rnd, sizeof(DCS_RND));
@@ -321,8 +323,8 @@ RndDtrmHmacSha512GetBytes(
 EFI_STATUS
 RndDtrmHmacSha512Init(
 	IN DCS_RND* rnd,
-	IN VOID* Context
-	)
+	IN VOID* Context,
+	IN UINTN ContextSize)
 {
 	EFI_STATUS res = EFI_SUCCESS;
 	ZeroMem(rnd, sizeof(DCS_RND));
@@ -331,21 +333,104 @@ RndDtrmHmacSha512Init(
 	rnd->Prepare = RndDtrmHmacSha512Prepare;
 
 	if (Context != NULL) {
-		CHAR16* type = (CHAR16*)Context;
-		if (*type == '_') {
-			UINT8* data;
-			UINTN  size;
-			type++;
-			res = FileLoad(NULL, (CHAR16*)type, &data, &size);
-			if (EFI_ERROR(res)) {
-				rnd->Type = RndTypeNone;
-			}
-			res = RndDtrmHmacSha512Update(&rnd->State.HMacSha512, data, size, 0);
-			if (EFI_ERROR(res)) {
-				rnd->Type = RndTypeNone;
-			}
+		res = RndDtrmHmacSha512Update(&rnd->State.HMacSha512, (UINT8*)Context, ContextSize, 0);
+		if (EFI_ERROR(res)) {
+			rnd->Type = RndTypeNone;
 		}
 	}
+	return rnd->Prepare(rnd);
+}
+
+//////////////////////////////////////////////////////////////////////////
+// OpenSSL random
+//////////////////////////////////////////////////////////////////////////
+EFI_STATUS
+RndOpenSSLPrepare(
+	IN DCS_RND* rnd
+	)
+{
+	UINT64 rndTmp;
+	if (rnd != NULL && rnd->Type == RndTypeOpenSSL) {
+		if (RandomBytes((UINT8*)&rndTmp, 8)) {
+			return EFI_SUCCESS;
+		}
+	}
+	return EFI_NOT_READY;
+}
+
+EFI_STATUS
+RndOpenSSLGetBytes(
+	IN  DCS_RND *rnd,
+	OUT UINT8   *buf,
+	IN  UINTN    len)
+{
+	if (rnd != NULL && rnd->Type == RndTypeOpenSSL) {
+		if (RandomBytes(buf, len)) {
+			return EFI_SUCCESS;
+		}
+	}
+	return EFI_NOT_READY;
+}
+
+EFI_STATUS
+RndOpenSSLInit(
+	IN DCS_RND* rnd,
+	IN VOID* Context,
+	IN UINTN ContextSize
+	)
+{
+	int res;
+	ZeroMem(rnd, sizeof(DCS_RND));
+	rnd->Type = RndTypeOpenSSL;
+	rnd->GetBytes = RndOpenSSLGetBytes;
+	rnd->Prepare = RndOpenSSLPrepare;
+	res = RandomSeed(Context, ContextSize);
+	if (!res) {
+		return EFI_NOT_READY;
+	}
+	return rnd->Prepare(rnd);
+}
+
+//////////////////////////////////////////////////////////////////////////
+// TPM random
+//////////////////////////////////////////////////////////////////////////
+EFI_STATUS
+RndTpmPrepare(
+	IN DCS_RND* rnd
+	)
+{
+	UINT64 rndTmp;
+	UINT32 sz = sizeof(rndTmp);
+	if (rnd != NULL && rnd->Type == RndTypeTpm) {
+		return Tpm12GetRandom(&sz, (UINT8*)&rndTmp);
+	}
+	return EFI_NOT_READY;
+}
+
+EFI_STATUS
+RndTpmGetBytes(
+	IN  DCS_RND *rnd,
+	OUT UINT8   *buf,
+	IN  UINTN    len)
+{
+	UINT32 sz = (UINT32)len;
+	if (rnd != NULL && rnd->Type == RndTypeTpm) {
+		return Tpm12GetRandom(&sz, buf);
+	}
+	return EFI_NOT_READY;
+}
+
+EFI_STATUS
+RndTpmInit(
+	IN DCS_RND* rnd,
+	IN VOID* Context,
+	IN UINTN ContextSize
+	)
+{
+	ZeroMem(rnd, sizeof(DCS_RND));
+	rnd->Type = RndTypeTpm;
+	rnd->GetBytes = RndTpmGetBytes;
+	rnd->Prepare = RndTpmPrepare;
 	return rnd->Prepare(rnd);
 }
 
@@ -356,6 +441,7 @@ EFI_STATUS
 RndInit(
 	IN UINTN   rndType,
 	IN VOID*   Context,
+	IN UINTN   ContextSize,
 	OUT DCS_RND **rnd)
 {
 	if (rnd != NULL) {
@@ -366,13 +452,19 @@ RndInit(
 			rndTemp->Type = (UINT32)rndType;
 			switch (rndType) {
 			case RndTypeFile:
-				res = RndFileInit(rndTemp, Context);
+				res = RndFileInit(rndTemp, Context, ContextSize);
 				break;
 			case RndTypeRDRand:
-				res = RndRDRandInit(rndTemp, Context);
+				res = RndRDRandInit(rndTemp, Context, ContextSize);
 				break;
 			case RndTypeDtrmHmacSha512:
-				res = RndDtrmHmacSha512Init(rndTemp, Context);
+				res = RndDtrmHmacSha512Init(rndTemp, Context, ContextSize);
+				break;
+			case RndTypeOpenSSL:
+				res = RndOpenSSLInit(rndTemp, Context, ContextSize);
+				break;
+			case RndTypeTpm:
+				res = RndTpmInit(rndTemp, Context, ContextSize);
 				break;
 			}
 			if (EFI_ERROR(res)) {
@@ -417,7 +509,7 @@ RndSave(
 	EFI_STATUS res = EFI_NOT_READY;
 	DCS_RND_SAVED    *RndSaved;
 	UINT32 crc;
-	if (rnd != NULL && rndSaved != NULL && rnd->Type != RndTypeFile) {
+	if (rnd != NULL && rndSaved != NULL && rnd->Type != RndTypeFile && rnd->Type != RndTypeOpenSSL) {
 		RndSaved = MEM_ALLOC(sizeof(DCS_RND_SAVED));
 		if (RndSaved != NULL) {
 			RndSaved->Size = sizeof(DCS_RND_SAVED);
@@ -452,7 +544,7 @@ RndLoad(
 	if (EFI_ERROR(res) || crc != crcSaved || rndSaved->Sign != gRndHeaderSign) {
 		return EFI_CRC_ERROR;
 	}
-	res = RndInit(rndSaved->Type, NULL, rndOut);
+	res = RndInit(rndSaved->Type, NULL, 0, rndOut);
 	if (!EFI_ERROR(res)) {
 		CopyMem(&((*rndOut)->State), &rndSaved->State, sizeof(DCS_RND_STATE));
 	}

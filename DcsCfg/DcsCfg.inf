@@ -34,6 +34,7 @@
   DcsCfgGraphics.c
   DcsCfgBlockio.c
   DcsCfgTouch.c
+  DcsCfgTpm.c
   DcsCfgSetup.c
 
 [Packages]
@@ -51,6 +52,7 @@
   GraphLib
   PasswordLib
   DcsCfgLib
+  DcsTpmLib
   VeraCryptLib
   ShellLib
 

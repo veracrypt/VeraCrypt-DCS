@@ -121,9 +121,9 @@ TryHeaderDecrypt(
 		return EFI_INVALID_PARAMETER;
 	}
 	OUT_PRINT(L"%H" L"Success\n" L"%N", vcres);
-	OUT_PRINT(L"Start %lld length %lld\nVolumeSize %lld\nhiddenVolumeSize %lld\nflags 0x%x\n",
+	OUT_PRINT(L"Start %lld length %lld\nVolumeSize %lld\nHiddenVolumeSize %lld\nflags 0x%x\n",
 		cryptoInfo->EncryptedAreaStart.Value, (uint64)cryptoInfo->EncryptedAreaLength.Value,
-		cryptoInfo->VolumeSize,
+		cryptoInfo->VolumeSize.Value,
 		cryptoInfo->hiddenVolumeSize,
 		cryptoInfo->HeaderFlags
 		);
@@ -247,7 +247,6 @@ CreateVolumeHeader(
 	encSectorEnd = AskUINT64("encryption end (sector):", encSectorEnd);
 	VolumeSize = AskUINT64("volume total (sectors):", VolumeSize);
 	hiddenVolumeSize = AskUINT64("hidden volume total (sectors):", hiddenVolumeSize);
-	gAuthBoot = AskConfirm("Boot mode[N]?", 1);
 	HeaderFlags = (UINT32)AskUINTN("flags:", gAuthBoot ? TC_HEADER_FLAG_ENCRYPTED_SYSTEM : 0);
 
 	vcres = CreateVolumeHeaderInMemory(
@@ -393,6 +392,7 @@ RangeCrypt(
 	if (encrypt) {
 		remains = size - enSize;
 		pos = start + enSize;
+		rd = (UINTN)((remains > CRYPT_BUF_SECTORS) ? CRYPT_BUF_SECTORS : remains);
 	}	else {
 		remains = enSize;
 		rd = (UINTN)((remains > CRYPT_BUF_SECTORS) ? CRYPT_BUF_SECTORS : remains);
@@ -461,12 +461,12 @@ RangeCrypt(
 			}
 		} while (EFI_ERROR(res));
 
+		remains -= rd;
 		if (encrypt) {
 			pos += rd;
 		}	else {
-			pos -= rd;
+			pos -= (rd > remains) ? remains : rd;
 		}
-		remains -= rd;
 
 		// Update header
 		if (headerInfo != NULL) {
@@ -999,12 +999,20 @@ CreateVolumeHeaderOnDisk(
 	BioPrintDevicePath(index);
 	OUT_PRINT(L"\n");
 
+	gAuthBoot = AskConfirm("Boot mode[N]?", 1);
 	isPart = EfiIsPartition(gBIOHandles[index]);
 	if (isPart) {
 		res = EfiGetPartDetails(gBIOHandles[index], &hdp, &hDisk);
 		if (!EFI_ERROR(res)) {
-			encSectorEnd = hdp.PartitionSize - encSectorStart - 256;
-			VolumeSize = hdp.PartitionSize;
+			if (gAuthBoot) {
+				encSectorStart = hdp.PartitionStart;
+				encSectorEnd = hdp.PartitionSize + encSectorStart - 1;
+				VolumeSize = hdp.PartitionSize;
+			}
+			else {
+				encSectorEnd = hdp.PartitionSize - encSectorStart - 256;
+				VolumeSize = hdp.PartitionSize;
+			}
 		}
 	}
 

@@ -75,6 +75,10 @@ AskConsolePwdInt(
 			ConsoleShowTip(gTPMLocked ? L" TPM locked!" : L" TPM unlocked!", 10000000);
 		}
 
+		if (key.ScanCode == SCAN_F9) {
+			gSCLocked = gSCLocked ? 0 : 1;
+			ConsoleShowTip(gSCLocked ? L" Smart card locked!" : L" Smart card unlocked!", 10000000);
+		}
 
 		if (key.UnicodeChar == CHAR_CARRIAGE_RETURN) {
 			*retCode = AskPwdRetLogin;

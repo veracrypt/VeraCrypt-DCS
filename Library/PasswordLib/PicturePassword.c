@@ -131,6 +131,8 @@ CHAR8*	msgPlatformLocked = "PLT\nlkd";
 CHAR8*	msgPlatformUnLocked = "PLT\nunlkd";
 CHAR8*	msgTpmLocked = "TPM\nlkd";
 CHAR8*	msgTpmUnLocked = "TPM\nunlkd";
+CHAR8*	msgSCLocked = "SC\nlkd";
+CHAR8*	msgSCUnLocked = "SC\nunlkd";
 
 TOUCH_ZONE	TZN_Login = { 0, NULL, tznLogin, 128 };
 TOUCH_ZONE	TZN_Speaker = { 2, NULL, tznBeep, 64 };
@@ -138,6 +140,7 @@ TOUCH_ZONE	TZN_Show = { 3, NULL, tznShow, 64 };
 TOUCH_ZONE	TZN_Change = { 5, NULL, tznChange, 32 };
 TOUCH_ZONE	TZN_Platform = { 6, NULL, 0, 32 };
 TOUCH_ZONE	TZN_Tpm = { 7, NULL, 0, 32 };
+TOUCH_ZONE	TZN_SC = { 8, NULL, 0, 32 };
 
 VOID
 DrawTouchZone(
@@ -342,6 +345,9 @@ AskPictPwdInt(
 	TZN_Tpm.Message = gTPMLocked ? msgTpmLocked : msgTpmUnLocked;
 	DrawTouchZone(&TZN_Tpm);
 
+	TZN_SC.Message = gSCLocked ? msgSCLocked : msgSCUnLocked;
+	DrawTouchZone(&TZN_SC);
+
 	TZN_Show.Message = gPasswordVisible ? msgHidePwd : msgShowPwd;
 	DrawTouchZone(&TZN_Show);
 	cellSelected = MEM_ALLOC(sizeof(UINTN) * 2 * (pwdMax + 1));
@@ -479,6 +485,10 @@ AskPictPwdInt(
 				gTPMLocked = gTPMLocked ? 0 : 1;
 				pwdAction = PwdActUpdateZones;
 				break;
+			case SCAN_F9:
+				gSCLocked = gSCLocked ? 0 : 1;
+				pwdAction = PwdActUpdateZones;
+				break;
 			default:
 				;
 			}
@@ -554,6 +564,10 @@ AskPictPwdInt(
 					gPlatformLocked = gPlatformLocked ? 0 : 1;
 					pwdAction = PwdActUpdateZones;
 				}
+				if (IsTouchZone(&TZN_SC, curX, curY)) {
+					gSCLocked = gSCLocked ? 0 : 1;
+					pwdAction = PwdActUpdateZones;
+				}
 			}
 		}
 
@@ -614,6 +628,9 @@ AskPictPwdInt(
 
 			TZN_Tpm.Message = gTPMLocked ? msgTpmLocked : msgTpmUnLocked;
 			DrawTouchZone(&TZN_Tpm);
+
+			TZN_SC.Message = gSCLocked ? msgSCLocked : msgSCUnLocked;
+			DrawTouchZone(&TZN_SC);
 		}
 
 		if (curPrevX != curX || curPrevY != curY) {

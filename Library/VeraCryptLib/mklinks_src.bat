@@ -71,6 +71,10 @@ call :create_link Boot\Windows\BootCommon.h
 call :create_link Boot\Windows\BootDefs.h
 set create_link_skip_pushd=N
 
+@echo on
+copy /Y Twofish_x64.S.precompiled Twofish_x64.obj
+@echo off
+
 goto :end
 
 :create_link

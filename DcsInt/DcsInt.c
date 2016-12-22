@@ -374,6 +374,7 @@ IntBlockIo_Hook(
 		// add to global list
 		if (DcsIntBlockIoFirst == NULL) {
 			DcsIntBlockIoFirst = DcsIntBlockIo;
+			DcsIntBlockIoFirst->Next = NULL;
 		}
 		else {
 			DcsIntBlockIoFirst->Next = DcsIntBlockIoFirst;

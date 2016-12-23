@@ -377,7 +377,7 @@ IntBlockIo_Hook(
 			DcsIntBlockIoFirst->Next = NULL;
 		}
 		else {
-			DcsIntBlockIoFirst->Next = DcsIntBlockIoFirst;
+			DcsIntBlockIo->Next = DcsIntBlockIoFirst;
 			DcsIntBlockIoFirst = DcsIntBlockIo;
 		}
 

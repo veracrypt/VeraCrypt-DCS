@@ -30,6 +30,7 @@ UINTN		gPasswordPictureCharsLen = 95;
 
 UINT8		gPasswordVisible = 0;
 int		gPasswordShowMark = 1;
+UINT8		gPasswordProgress = 1;
 
 int		gPlatformLocked = 0;
 int		gTPMLocked = 0;
@@ -172,15 +173,17 @@ DrawPwdZone(
 {
 	INT32 pwdGrphMaxLen = (INT32)(sWidth - 2 * step);
 	BltFill(bltScrn, gColorBlack, 0, 0, (INT32)(sWidth - 2 * step), (INT32)(posPictY));
-	if (gPasswordVisible) {
-		BltText(bltScrn, &ctxCell, 0, 0, 256, pwd);
-	}
-	else {
-		INT32 pwdGrphLen = (INT32)(pwdGrphMaxLen * picPwdIdx / pwdMax);
-		INT32 pwdGrphHeight = (INT32)(posPictY) / 2;
-		INT32 pwdGrphTop = (INT32)(posPictY) / 4;
-		BltFill(bltScrn, gColorGreen, 0, pwdGrphTop, pwdGrphLen, pwdGrphHeight + pwdGrphTop);
-		BltFill(bltScrn, gColorBlack, pwdGrphLen, pwdGrphTop, pwdGrphMaxLen, pwdGrphHeight + pwdGrphTop);
+	if (gPasswordProgress || gPasswordVisible) {
+		if (gPasswordVisible) {
+			BltText(bltScrn, &ctxCell, 0, 0, 256, pwd);
+		}
+		else {
+			INT32 pwdGrphLen = (INT32)(pwdGrphMaxLen * picPwdIdx / pwdMax);
+			INT32 pwdGrphHeight = (INT32)(posPictY) / 2;
+			INT32 pwdGrphTop = (INT32)(posPictY) / 4;
+			BltFill(bltScrn, gColorGreen, 0, pwdGrphTop, pwdGrphLen, pwdGrphHeight + pwdGrphTop);
+			BltFill(bltScrn, gColorBlack, pwdGrphLen, pwdGrphTop, pwdGrphMaxLen, pwdGrphHeight + pwdGrphTop);
+		}
 	}
 }
 

@@ -637,7 +637,7 @@ SecRegionTryDecrypt()
 		if (gAuthPwdCode == AskPwdRetCancel) {
 			return EFI_NOT_READY;
 		}
-		OUT_PRINT(L"Authorizing...\n\r");
+		OUT_PRINT(L"%a", gAuthStartMsg);
 		do {
 			CopyMem(Header, SecRegionData + SecRegionOffset, 512);
 			vcres = ReadVolumeHeader(gAuthBoot, Header, &gAuthPassword, gAuthHash, gAuthPim, gAuthTc, &SecRegionCryptInfo, NULL);
@@ -648,9 +648,10 @@ SecRegionTryDecrypt()
 			OUT_PRINT(L"Start %d %lld len %lld\n", SecRegionOffset / (1024*128), SecRegionCryptInfo->EncryptedAreaStart.Value, SecRegionCryptInfo->EncryptedAreaLength.Value);
 			break;
 		}	else {
-			ERR_PRINT(L"Authorization failed. Wrong password, PIM or hash. Decrypt error(%x)\n\r", vcres);
+			ERR_PRINT(L"%a", gAuthErrorMsg);
 		}
-	} while (vcres != 0 && gAuthRetry != 0);
+		gAuthRetry--;
+	} while (vcres != 0 && gAuthRetry > 0);
 	if (vcres != 0) {
 		return EFI_CRC_ERROR;
 	}
@@ -977,6 +978,7 @@ UefiMain(
 			if (!EFI_ERROR(res) && id != NULL) {
 				INT32		rud;
 				rud = GetCrc32((unsigned char*)id, (int)AsciiStrLen(id));
+            OUT_PRINT(L"%d  ? %d\n", gRUD, rud);
 				MEM_FREE(id);
 				if (rud == gRUD) {
 					devFound = TRUE;
@@ -985,7 +987,8 @@ UefiMain(
 			}
 		}
 		if (!devFound) return OnExit(gOnExitNotFound, OnExitAuthNotFound, EFI_NOT_FOUND);
-	}
+      KeyWait(L"%2d   \r", 12, 0, 0);
+   }
 
 	// Try to find by OS partition GUID
 	if (SecRegionData == NULL && gPartitionGuidOS != NULL) {
@@ -1022,12 +1025,13 @@ UefiMain(
 		return res;
 	}
 
+	RndInit(gRndDefault, NULL, 0, &gRnd);
+
 	res = GetTpm(); // Try to get TPM
 	if (!EFI_ERROR(res)) {
 		if (gConfigBuffer != NULL) {
 			TpmMeasure(gConfigBuffer, gConfigBufferSize); // Measure configuration
 		}
-		RndInit(RndTypeTpm, NULL, 0, &gRnd);
 		if (gTpm->IsConfigured(gTpm) && !gTpm->IsOpen(gTpm)) {
 			ERR_PRINT(L"TPM is configured but locked. Probably boot chain is modified!\n");
 			KeyWait(L"%1d\r", 9, 0, 0);

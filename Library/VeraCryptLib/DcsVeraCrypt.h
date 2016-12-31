@@ -30,6 +30,9 @@ extern CHAR16*	gPasswordPictureFileName;
 extern char* gAuthPasswordMsg;
 extern Password gAuthPassword;
 
+extern UINT8 gAutoLogin;
+extern char* gAutoPassword;
+
 extern char* gAuthPimMsg;
 extern int gAuthPimRqt;
 extern int gAuthPim;
@@ -45,6 +48,11 @@ extern int gAuthBootRqt;
 extern int gAuthBoot;
 
 extern int gAuthRetry;
+extern int gRndDefault;
+
+extern char* gAuthStartMsg;
+extern char* gAuthErrorMsg;
+
 extern INT32 gRUD;
 
 extern int gAuthSecRegionSearch;

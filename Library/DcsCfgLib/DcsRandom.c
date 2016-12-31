@@ -68,13 +68,14 @@ RndFileInit(
 	)
 {
 	EFI_STATUS res = EFI_NOT_FOUND;
-	ZeroMem(rnd, sizeof(DCS_RND));
-	rnd->Type = RndTypeFile;
-	rnd->GetBytes = RndFileGetBytes;
-	rnd->Prepare = RndFilePrepare;
 	if (Context != NULL) {
+		ZeroMem(rnd, sizeof(DCS_RND));
+		rnd->Type = RndTypeFile;
+		rnd->GetBytes = RndFileGetBytes;
+		rnd->Prepare = RndFilePrepare;
 		rnd->State.File.Data = Context;
 		rnd->State.File.Size = ContextSize;
+		res = EFI_SUCCESS;
 	}
 	return res;
 }

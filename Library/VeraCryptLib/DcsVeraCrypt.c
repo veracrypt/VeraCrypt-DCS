@@ -89,6 +89,9 @@ int gAuthPasswordType = 0;
 char* gAuthPasswordMsg = NULL;
 Password gAuthPassword;
 
+UINT8 gAutoLogin = 0;
+char* gAutoPassword = NULL;
+
 char* gAuthPimMsg = NULL;
 int gAuthPimRqt = 1;
 int gAuthPim = 0;
@@ -105,6 +108,10 @@ int gAuthBoot = 1;
 
 int gAuthRetry = 10;
 int gAuthPwdCode = 1;
+int gRndDefault = 0;
+
+char* gAuthErrorMsg = NULL;
+char* gAuthStartMsg = NULL;
 
 INT32 gRUD = 0;
 
@@ -182,6 +189,10 @@ VCAuthLoadConfig()
 	gAuthPasswordMsg = MEM_ALLOC(MAX_MSG);
 	ConfigReadString("PasswordMsg", "Password:", gAuthPasswordMsg, MAX_MSG);
 
+	gAutoLogin = (UINT8)ConfigReadInt("AutoLogin", 0);
+	gAutoPassword = MEM_ALLOC(MAX_PASSWORD);
+	ConfigReadString("AutoPassword", "", gAutoPassword, MAX_PASSWORD);
+
 	gAuthPimMsg = MEM_ALLOC(MAX_MSG);
 	gAuthPimRqt = ConfigReadInt("PimRqt", 1);
 	gAuthPim = ConfigReadInt("Pim", 0);
@@ -192,12 +203,20 @@ VCAuthLoadConfig()
 	gAuthHash = ConfigReadInt("Hash", 0);
 	ConfigReadString("HashMsg", "(0) TEST ALL (1) SHA512 (2) WHIRLPOOL (3) SHA256 (4) RIPEMD160\n\rHash:", gAuthHashMsg, MAX_MSG);
 
-	gPasswordVisible = (UINT8)ConfigReadInt("AuthorizeVisible", 0);
+   gPasswordProgress = (UINT8)ConfigReadInt("AuthorizeProgress", 1);
+   gPasswordVisible = (UINT8)ConfigReadInt("AuthorizeVisible", 0);
 	gPasswordShowMark = ConfigReadInt("AuthorizeMarkTouch", 1);
-	gAuthBootRqt = ConfigReadInt("BootRqt", 0);
+
+   gAuthStartMsg = MEM_ALLOC(MAX_MSG);
+   ConfigReadString("AuthStartMsg", "Authorizing...\n\r", gAuthStartMsg, MAX_MSG);
+   gAuthErrorMsg = MEM_ALLOC(MAX_MSG);
+   ConfigReadString("AuthErrorMsg", "Authorization failed. Wrong password, PIM or hash.\n\r", gAuthErrorMsg, MAX_MSG);
+
+   gAuthBootRqt = ConfigReadInt("BootRqt", 0);
 	gAuthTcRqt = ConfigReadInt("TcRqt", 0);
 	gRUD = ConfigReadInt("RUD", 0);
 	gAuthRetry = ConfigReadInt("AuthorizeRetry", 10);
+	gRndDefault = ConfigReadInt("Random", 0);
 
 	// touch
 	tmp = ConfigReadInt("TouchDevice", -1);
@@ -331,31 +350,38 @@ VCAskPwd(
 			}
 		}
 
-		if (gAuthPasswordType == 1 &&
-			gGraphOut != NULL &&
-			((gTouchPointer != NULL) || (gTouchSimulate != 0))) {
-			AskPictPwdInt(pwdType, sizeof(vcPwd->Text), vcPwd->Text, &vcPwd->Length, &gAuthPwdCode);
+		if (gAutoLogin) {
+			gAutoLogin = 0;
+			gAuthPwdCode = AskPwdRetLogin;
+			vcPwd->Length = (unsigned int)strlen(gAutoPassword);
+			strcpy(vcPwd->Text, gAutoPassword);
 		}
 		else {
-			switch (pwdType) {
-			case AskPwdNew:
-				OUT_PRINT(L"New password:");
-				break;
-			case AskPwdConfirm:
-				OUT_PRINT(L"Confirm password:");
-				break;
-			case AskPwdLogin:
-			default:
-				OUT_PRINT(L"%a", gAuthPasswordMsg);
-				break;
+			if (gAuthPasswordType == 1 &&
+				gGraphOut != NULL &&
+				((gTouchPointer != NULL) || (gTouchSimulate != 0))) {
+				AskPictPwdInt(pwdType, sizeof(vcPwd->Text), vcPwd->Text, &vcPwd->Length, &gAuthPwdCode);
 			}
-			AskConsolePwdInt(&vcPwd->Length, vcPwd->Text, &gAuthPwdCode, sizeof(vcPwd->Text), gPasswordVisible);
-		}
+			else {
+				switch (pwdType) {
+				case AskPwdNew:
+					OUT_PRINT(L"New password:");
+					break;
+				case AskPwdConfirm:
+					OUT_PRINT(L"Confirm password:");
+					break;
+				case AskPwdLogin:
+				default:
+					OUT_PRINT(L"%a", gAuthPasswordMsg);
+					break;
+				}
+				AskConsolePwdInt(&vcPwd->Length, vcPwd->Text, &gAuthPwdCode, sizeof(vcPwd->Text), gPasswordVisible);
+			}
 
-		if (gAuthPwdCode == AskPwdRetCancel) {
-			return;
+			if (gAuthPwdCode == AskPwdRetCancel) {
+				return;
+			}
 		}
-
 		if (gSCLocked) {
 			ERR_PRINT(L"Smart card is not configured\n");
 		}

@@ -59,8 +59,10 @@ AskConsolePwdInt(
 				for (i = 0; i < count; i++) {
 					OUT_PRINT(L"\b");
 				}
-				for (i = 0; i < count; i++) {
-					OUT_PRINT(L"*");
+				if (gPasswordProgress) {
+					for (i = 0; i < count; i++) {
+						OUT_PRINT(L"*");
+					}
 				}
 			}
 		}
@@ -98,7 +100,9 @@ AskConsolePwdInt(
 			continue;
 		}
 		else if (key.UnicodeChar == CHAR_BACKSPACE) {
-			OUT_PRINT(L"\b \b");
+			if (gPasswordProgress || show) {
+				OUT_PRINT(L"\b \b");
+			}
 			if (asciiLine != NULL) asciiLine[--count] = '\0';
 			continue;
 		}
@@ -107,8 +111,7 @@ AskConsolePwdInt(
 		if (count < line_max - 1) {
 			if (show) {
 				OUT_PRINT(L"%c", key.UnicodeChar);
-			}
-			else {
+			}	else if (gPasswordProgress) {
 				OUT_PRINT(L"*");
 			}
 			// save char
@@ -124,10 +127,12 @@ AskConsolePwdInt(
 	// Set end of line
 	if (asciiLine != NULL) {
 		asciiLine[count] = '\0';
-		for (i = 0; i < count; i++) {
-			OUT_PRINT(L"\b \b");
+		if (gPasswordProgress || show) {
+			for (i = 0; i < count; i++) {
+				OUT_PRINT(L"\b \b");
+			}
+			OUT_PRINT(L"*");
 		}
-		OUT_PRINT(L"*");
 	}
 	OUT_PRINT(L"\n");
 }

@@ -23,6 +23,7 @@ extern CHAR8*	gPasswordPictureChars;
 extern CHAR8*	gPasswordPictureCharsDefault;
 extern UINTN	gPasswordPictureCharsLen;
 extern UINT8	gPasswordVisible;
+extern UINT8	gPasswordProgress;
 extern int		gPasswordShowMark;
 
 extern int		gPlatformLocked;

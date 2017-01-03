@@ -628,7 +628,7 @@ SecRegionTryDecrypt()
 {
 	int          vcres = 1;
 	EFI_STATUS   res = EFI_SUCCESS;
-
+	int          retry = gAuthRetry;
 	PlatformGetID(SecRegionHandle, &gPlatformKeyFile, &gPlatformKeyFileSize);
 
 	do {
@@ -650,8 +650,8 @@ SecRegionTryDecrypt()
 		}	else {
 			ERR_PRINT(L"%a", gAuthErrorMsg);
 		}
-		gAuthRetry--;
-	} while (vcres != 0 && gAuthRetry > 0);
+		retry--;
+	} while (vcres != 0 && retry > 0);
 	if (vcres != 0) {
 		return EFI_CRC_ERROR;
 	}
@@ -935,6 +935,10 @@ VirtualNotifyEvent(
 	if (SecRegionData != NULL) {
 		MEM_BURN(SecRegionData, SecRegionSize);
 	}
+
+	if (gAutoPassword != NULL) {
+		MEM_BURN(gAutoPassword, MAX_PASSWORD);
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -987,7 +991,6 @@ UefiMain(
 			}
 		}
 		if (!devFound) return OnExit(gOnExitNotFound, OnExitAuthNotFound, EFI_NOT_FOUND);
-      KeyWait(L"%2d   \r", 12, 0, 0);
    }
 
 	// Try to find by OS partition GUID

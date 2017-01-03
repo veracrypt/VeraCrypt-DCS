@@ -20,6 +20,13 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Guid/GlobalVariable.h>
 #include "common/Tcdefs.h"
 
+#ifdef _M_X64
+#define ARCHdotEFI L"x64.efi"
+#else
+#define ARCHdotEFI L"IA32.efi"
+#endif
+
+
 //////////////////////////////////////////////////////////////////////////
 // Menu
 //////////////////////////////////////////////////////////////////////////
@@ -52,11 +59,7 @@ SelectEfiVolume()
 	for (i = 0; i < gFSCount; ++i) {
 		res = FileOpenRoot(gFSHandles[i], &file);
 		if(EFI_ERROR(res)) continue;
-#ifdef _M_X64
-		if (!EFI_ERROR(FileExist(file, L"EFI\\Boot\\bootx64.efi"))) {
-#else
-		if (!EFI_ERROR(FileExist(file, L"EFI\\Boot\\bootia32.efi"))) {
-#endif
+		if (!EFI_ERROR(FileExist(file, L"EFI\\Boot\\boot" ARCHdotEFI))) {
 			efiVolumesCount++;
 			efiVolumes[i] = file;
 			if (gFSHandles[i] != startHandle) {
@@ -95,11 +98,7 @@ SelectEfiVolume()
 //////////////////////////////////////////////////////////////////////////
 EFI_STATUS
 ActionBootWinPE(IN VOID* ctx) {
-#ifdef _M_X64
-	return EfiExec(NULL, L"EFI\\Boot\\WinPE_bootx64.efi");
-#else
-	return EfiExec(NULL, L"EFI\\Boot\\WinPE_bootia32.efi");
-#endif
+	return EfiExec(NULL, L"EFI\\Boot\\WinPE_boot" ARCHdotEFI);
 }
 
 EFI_STATUS
@@ -256,7 +255,7 @@ DcsReMain(
 		item = DcsMenuAppend(item, L"Boot VeraCrypt loader from rescue disk", 'v', ActionDcsBoot, NULL);
 	}
 
-	if (!EFI_ERROR(FileExist(NULL, L"EFI\\Boot\\WinPE_bootx64.efi"))) {
+	if (!EFI_ERROR(FileExist(NULL, L"EFI\\Boot\\WinPE_boot" ARCHdotEFI))) {
 		item = DcsMenuAppend(item, L"Boot Windows PE from rescue disk", 'w', ActionBootWinPE, NULL);
 	}
 

@@ -30,6 +30,7 @@ https://opensource.org/licenses/LGPL-3.0
 #include "common/Endian.h"
 #include "common/Crypto.h"
 #include "common/Volumes.h"
+#include "common/Pkcs5.h"
 #include "common/Crc.h"
 #include "crypto/cpu.h"
 #include "DcsVeraCrypt.h"
@@ -303,6 +304,11 @@ AskARI() {
 	return AskChoice("[a]bort [r]etry [i]gnore?", "aArRiI", 1);
 }
 
+UINT8
+AskAR() {
+	return AskChoice("[a]bort [r]etry?", "aArR", 1);
+}
+
 UINTN gScndTotal = 0;
 UINTN gScndCurrent = 0;
 VOID
@@ -369,7 +375,7 @@ RangeCrypt(
 	IN UINT64                 headerSector
 	)
 {
-	EFI_STATUS              res;
+	EFI_STATUS              res = 0;
 	EFI_BLOCK_IO_PROTOCOL  *io;
 	UINT8*                  buf;
 	UINT64                  remains;
@@ -402,118 +408,246 @@ RangeCrypt(
 	// Start second
 	gScndTotal = 0;
 	gScndCurrent = 0;
-	do {
-		rd = (UINTN)((remains > CRYPT_BUF_SECTORS) ? CRYPT_BUF_SECTORS : remains);
-		RangeCryptProgress(size, remains, pos, remainsOnStart);
-		// Read
+	
+	if (remainsOnStart > 0)
+	{
 		do {
-			res = io->ReadBlocks(io, io->Media->MediaId, pos, rd << 9, buf);
-			if (EFI_ERROR(res)) {
-				UINT8 ari;
-				ERR_PRINT(L"Read error: %r\n", res);
-				ari = AskARI();
-				switch (ari)
-				{
-				case 'I':
-				case 'i':
-					res = EFI_SUCCESS;
-					break;
-				case 'A':
-				case 'a':
-					goto error;
-				case 'R':
-				case 'r':
-				default:
-					if (rd > 1) rd >>= 1;
-					break;
-				}
-			}
-		} while (EFI_ERROR(res));
-
-		// Crypt
-		if (encrypt) {
-			EncryptDataUnits(buf, (UINT64_STRUCT*)&pos, (UINT32)(rd), info);
-		}	else {
-			DecryptDataUnits(buf, (UINT64_STRUCT*)&pos, (UINT32)(rd), info);
-		}
-
-		// Write
-		do {
-			res = io->WriteBlocks(io, io->Media->MediaId, pos, rd << 9, buf);
-			if (EFI_ERROR(res)) {
-				UINT8 ari;
-				ERR_PRINT(L"Write error: %r\n", res);
-				ari = AskARI();
-				switch (ari)
-				{
-				case 'I':
-				case 'i':
-					res = EFI_SUCCESS;
-					break;
-				case 'A':
-				case 'a':
-					goto error;
-				case 'R':
-				case 'r':
-				default:
-					break;
-				}
-			}
-		} while (EFI_ERROR(res));
-
-		remains -= rd;
-		if (encrypt) {
-			pos += rd;
-		}	else {
-			pos -= (rd > remains) ? remains : rd;
-		}
-
-		// Update header
-		if (headerInfo != NULL) {
-			res = io->ReadBlocks(io, io->Media->MediaId, headerSector, 512, buf);
-			if (!EFI_ERROR(res)) {
-				UINT32 headerCrc32;
-				UINT64 encryptedAreaLength;
-				UINT8* headerData;
-				if (encrypt) {
-					encryptedAreaLength = (size - remains) << 9;
-				}	else {
-					encryptedAreaLength = remains << 9;
-				}
-				DecryptBuffer(buf + HEADER_ENCRYPTED_DATA_OFFSET, HEADER_ENCRYPTED_DATA_SIZE, headerInfo);
-				if (GetHeaderField32(buf, TC_HEADER_OFFSET_MAGIC) == 0x56455241) {
-					headerData = buf + TC_HEADER_OFFSET_ENCRYPTED_AREA_LENGTH;
-					mputInt64(headerData, encryptedAreaLength);
-					headerCrc32 = GetCrc32(buf + TC_HEADER_OFFSET_MAGIC, TC_HEADER_OFFSET_HEADER_CRC - TC_HEADER_OFFSET_MAGIC);
-					headerData = buf + TC_HEADER_OFFSET_HEADER_CRC;
-					mputLong(headerData, headerCrc32);
-					EncryptBuffer(buf + HEADER_ENCRYPTED_DATA_OFFSET, HEADER_ENCRYPTED_DATA_SIZE, headerInfo);
-					res = io->WriteBlocks(io, io->Media->MediaId, headerSector, 512, buf);
-				}	else {
-					res = EFI_CRC_ERROR;
-				}
-			}
-			if (EFI_ERROR(res)) {
-				ERR_PRINT(L"Header update: %r\n", res);
-			}
-		}
-
-		// Check ESC
-		{
-			EFI_INPUT_KEY key;
-			res = gBS->CheckEvent(gST->ConIn->WaitForKey);
-			if(!EFI_ERROR(res)) {
-				gST->ConIn->ReadKeyStroke(gST->ConIn, &key);
-				if (key.ScanCode == SCAN_ESC) {
-					if (AskConfirm("\n\rStop?", 1)) {
-						res = EFI_NOT_READY;
+			rd = (UINTN)((remains > CRYPT_BUF_SECTORS) ? CRYPT_BUF_SECTORS : remains);
+			RangeCryptProgress(size, remains, pos, remainsOnStart);
+			// Read
+			do {
+				res = io->ReadBlocks(io, io->Media->MediaId, pos, rd << 9, buf);
+				if (EFI_ERROR(res)) {
+					UINT8 ari;
+					ERR_PRINT(L"Read error: %r\n", res);
+					ari = AskARI();
+					switch (ari)
+					{
+					case 'I':
+					case 'i':
+						res = EFI_SUCCESS;
+						break;
+					case 'A':
+					case 'a':
 						goto error;
+					case 'R':
+					case 'r':
+					default:
+						if (rd > 1) rd >>= 1;
+						break;
+					}
+				}
+			} while (EFI_ERROR(res));
+
+			// Crypt
+			if (encrypt) {
+				EncryptDataUnits(buf, (UINT64_STRUCT*)&pos, (UINT32)(rd), info);
+			}	else {
+				DecryptDataUnits(buf, (UINT64_STRUCT*)&pos, (UINT32)(rd), info);
+			}
+
+			// Write
+			do {
+				res = io->WriteBlocks(io, io->Media->MediaId, pos, rd << 9, buf);
+				if (EFI_ERROR(res)) {
+					UINT8 ari;
+					ERR_PRINT(L"Write error: %r\n", res);
+					ari = AskARI();
+					switch (ari)
+					{
+					case 'I':
+					case 'i':
+						res = EFI_SUCCESS;
+						break;
+					case 'A':
+					case 'a':
+						goto error;
+					case 'R':
+					case 'r':
+					default:
+						break;
+					}
+				}
+			} while (EFI_ERROR(res));
+
+			remains -= rd;
+			if (encrypt) {
+				pos += rd;
+			}	else {
+				pos -= (rd > remains) ? remains : rd;
+			}
+
+			// Update header
+			if (headerInfo != NULL) {
+				res = io->ReadBlocks(io, io->Media->MediaId, headerSector, 512, buf);
+				if (!EFI_ERROR(res)) {
+					UINT32 headerCrc32;
+					UINT64 encryptedAreaLength;
+					UINT8* headerData;
+					if (encrypt) {
+						encryptedAreaLength = (size - remains) << 9;
+					}	else {
+						encryptedAreaLength = remains << 9;
+					}
+					DecryptBuffer(buf + HEADER_ENCRYPTED_DATA_OFFSET, HEADER_ENCRYPTED_DATA_SIZE, headerInfo);
+					if (GetHeaderField32(buf, TC_HEADER_OFFSET_MAGIC) == 0x56455241) {
+						headerData = buf + TC_HEADER_OFFSET_ENCRYPTED_AREA_LENGTH;
+						mputInt64(headerData, encryptedAreaLength);
+						headerCrc32 = GetCrc32(buf + TC_HEADER_OFFSET_MAGIC, TC_HEADER_OFFSET_HEADER_CRC - TC_HEADER_OFFSET_MAGIC);
+						headerData = buf + TC_HEADER_OFFSET_HEADER_CRC;
+						mputLong(headerData, headerCrc32);
+						EncryptBuffer(buf + HEADER_ENCRYPTED_DATA_OFFSET, HEADER_ENCRYPTED_DATA_SIZE, headerInfo);
+						res = io->WriteBlocks(io, io->Media->MediaId, headerSector, 512, buf);
+					}	else {
+						res = EFI_CRC_ERROR;
+					}
+				}
+				if (EFI_ERROR(res)) {
+					ERR_PRINT(L"Header update: %r\n", res);
+				}
+			}
+
+			// Check ESC
+			{
+				EFI_INPUT_KEY key;
+				res = gBS->CheckEvent(gST->ConIn->WaitForKey);
+				if(!EFI_ERROR(res)) {
+					gST->ConIn->ReadKeyStroke(gST->ConIn, &key);
+					if (key.ScanCode == SCAN_ESC) {
+						if (AskConfirm("\n\rStop?", 1)) {
+							res = EFI_NOT_READY;
+							goto error;
+						}
 					}
 				}
 			}
+		} while (remains > 0);
+		RangeCryptProgress(size, remains, pos, remainsOnStart);
+	}
+	else if (!encrypt)
+	{
+		BOOL bIsSystemEncyption = FALSE;
+		if (info->noIterations == get_pkcs5_iteration_count (info->pkcs5, info->volumePim, FALSE, TRUE))
+			bIsSystemEncyption = TRUE;
+		
+		if (bIsSystemEncyption)
+		{
+			/*
+			 * Case of OS decryption by Rescue Disk
+			 * Check if NTFS marker exists. If not, then probably disk affected by
+			 * bug in 1.19 Rescue Disk which caused the first 50 MB of disk to be 
+			 * decrypted in a wrong way. In this case, try to reverse the faulty decryption
+			 * and then perform correct decryption
+			 */
+			remains = size % CRYPT_BUF_SECTORS;
+			if (remains > 0)
+			{
+				/* 1.19 bug appears only when size not multiple of 50 MB */				
+				res = io->ReadBlocks(io, io->Media->MediaId, start, 512, buf);
+				if (!EFI_ERROR(res)) {
+					if (0xEB52904E54465320 != BE64 (*(uint64 *) buf)) /* NTFS */
+					{
+						if (AskConfirm("\r\nSystem already decrypted but partition can't be recognized.\r\nDid you use 1.19 Rescue Disk previously to decrypt OS?", 1)) {
+							OUT_PRINT(L"\r\nTrying to recover data corrupted by 1.19 Rescue Disk bug.");
+
+							pos = start + remains - CRYPT_BUF_SECTORS;
+							// Read
+							do {
+								res = io->ReadBlocks(io, io->Media->MediaId, pos, CRYPT_BUF_SECTORS << 9, buf);
+								if (EFI_ERROR(res)) {
+									UINT8 ar;
+									ERR_PRINT(L"Read error: %r\n", res);
+									ar = AskAR();
+									if (ar != 'R' && ar != 'r')
+										break;
+								}
+							} while (EFI_ERROR(res));
+							
+							if (EFI_ERROR(res))
+							{
+								OUT_PRINT(L"\r\nNo corrective action performed.");
+							}
+							else
+							{
+								UINT8* realEncryptedData = buf + ((CRYPT_BUF_SECTORS - remains) << 9);
+								BOOL bPerformWrite = FALSE;
+
+								// reverse faulty decryption
+								EncryptDataUnits(buf, (UINT64_STRUCT*)&pos, (UINT32)(remains), info);
+								
+								// decrypt the correct data
+								DecryptDataUnits(realEncryptedData, (UINT64_STRUCT*)&start, (UINT32)(remains), info);
+						
+								if (0xEB52904E54465320 == BE64 (*(uint64 *) realEncryptedData)) /* NTFS */
+									bPerformWrite = TRUE;
+								else
+								{
+									if (AskConfirm("\r\nDecrypted data don't contain valid partition information. Proceeed anyway?", 1))
+										bPerformWrite = TRUE;
+								}
+								
+								if (bPerformWrite)
+								{
+									// Write original encrypted data
+									do {
+										res = io->WriteBlocks(io, io->Media->MediaId, pos, (UINTN)((CRYPT_BUF_SECTORS - remains) << 9), buf);
+										if (EFI_ERROR(res)) {
+											UINT8 ar;
+											ERR_PRINT(L"Write error: %r\n", res);
+											ar = AskAR();
+											if (ar != 'R' && ar != 'r')
+												break;
+										}
+									} while (EFI_ERROR(res));
+									
+									if (EFI_ERROR(res))
+									{
+										OUT_PRINT(L"\r\nNo corrective action performed.");
+									}
+									else
+									{										
+										// Write correctly decrypted data
+										do {
+											res = io->WriteBlocks(io, io->Media->MediaId, start, (UINTN) (remains << 9), realEncryptedData);
+											if (EFI_ERROR(res)) {
+												UINT8 ar;
+												ERR_PRINT(L"Write error: %r\n", res);
+												ar = AskAR();
+												if (ar != 'R' && ar != 'r')
+													break;
+											}
+										} while (EFI_ERROR(res));
+									
+										if (EFI_ERROR(res))
+										{
+											OUT_PRINT(L"\r\nFailed to write decrypted data.");
+										}
+										else
+										{
+											OUT_PRINT(L"\r\nData recovered successfully!");											
+										}
+									}
+								}
+								else
+								{
+									OUT_PRINT(L"\r\nNo corrective action performed.");
+								}								
+							}							
+						}
+						else
+						{
+							OUT_PRINT(L"\n\rNo corrective action attempted.");
+						}
+						
+					}
+					
+				}
+			}
+			 
+			
 		}
-	} while (remains > 0);
-	RangeCryptProgress(size, remains, pos, remainsOnStart);
+		
+	}
 	OUT_PRINT(L"\nDone");
 
 error:

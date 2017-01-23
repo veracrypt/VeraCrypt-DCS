@@ -23,9 +23,9 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Library/GraphLib.h>
 
 #ifdef _M_X64
-#define ARCH_NAME L"x64"
+#define ARCH_NAME "X64"
 #else
-#define ARCH_NAME L"IA32"
+#define ARCH_NAME "IA32"
 #endif
 CHAR8 Temp[1024];
 CHAR8 StrBuffer[1024];
@@ -169,6 +169,123 @@ XmlEndTagPrint(
 	return len;
 }
 
+EFI_FILE            *fInfo;
+
+VOID
+InfoEFI() {
+	XmlStartTag(fInfo, "EFI");
+	XmlTag(fInfo, "Version", FALSE, NULL, NULL);
+	XmlEndTagPrint(fInfo, "Version", "%d.%d", gST->Hdr.Revision >> 16, gST->Hdr.Revision & 0xFFFF);
+	XmlTag(fInfo, "Vendor", FALSE, NULL, NULL);
+	XmlEndTagPrint(fInfo, "Vendor", "%s", gST->FirmwareVendor);
+	XmlTag(fInfo, "Revision", FALSE, NULL, NULL);
+	XmlEndTagPrint(fInfo, "Revision", "0x0%x", gST->FirmwareRevision);
+	XmlTag(fInfo, "Architecture", TRUE, ARCH_NAME, NULL);
+	XmlEndTag(fInfo, "EFI");
+}
+
+VOID
+InfoSystem() {
+	EFI_STATUS res;
+	res = SMBIOSGetSerials();
+	if (!EFI_ERROR(res)) {
+		//		XmlTag(info, "System",FALSE, NULL, NULL);
+		XmlStartTag(fInfo, "System");
+		XmlTag(fInfo, "Manufacture", TRUE, gSmbSystemManufacture, NULL);
+		XmlTag(fInfo, "Model", TRUE, gSmbSystemModel, NULL);
+		XmlTag(fInfo, "Version", TRUE, gSmbSystemVersion, NULL);
+		XmlEndTag(fInfo, "System");
+		XmlStartTag(fInfo, "BIOS");
+		XmlTag(fInfo, "Vendor", TRUE, gSmbBiosVendor, NULL);
+		XmlTag(fInfo, "Version", TRUE, gSmbBiosVersion, NULL);
+		XmlTag(fInfo, "Date", TRUE, gSmbBiosDate, NULL);
+		XmlEndTag(fInfo, "BIOS");
+	}
+}
+
+VOID
+InfoTcg() {
+	InitTcg();
+	XmlTag(fInfo, "TPM12", TRUE, NULL, " count=\"%d\"", gTcgCount, NULL);
+	XmlTag(fInfo, "TPM20", TRUE, NULL, " count=\"%d\"", gTcg2Count, NULL);
+}
+
+VOID
+InfoBlockDevices() {
+	XmlTag(fInfo, "BlockDevices", TRUE, NULL, " count=\"%d\"", gBIOCount, NULL);
+}
+
+VOID
+InfoUsbDevices() {
+	InitUsb();
+	XmlTag(fInfo, "UsbDevices", TRUE, NULL, " count=\"%d\"", gUSBCount, NULL);
+}
+
+VOID
+InfoTouch() {
+	EFI_STATUS res;
+	UINTN i;
+	InitTouch();
+	XmlTag(fInfo, "TouchDevices", FALSE, NULL, " count=\"%d\"", gTouchCount, NULL);
+	FileAsciiPrint(fInfo, "\n");
+	gXmlTabs++;
+	for (i = 0; i < gTouchCount; ++i) {
+		EFI_ABSOLUTE_POINTER_PROTOCOL *aio;
+		res = TouchGetIO(gTouchHandles[i], &aio);
+		if (!EFI_ERROR(res)) {
+			XmlTag(fInfo, "TouchDevice", TRUE, NULL,
+				" index=\"%d\" minx=\"%d\" miny=\"%d\" minz=\"%d\" maxx=\"%d\" maxy=\"%d\" maxz=\"%d\" attr=\"0x0%x\"", i,
+				aio->Mode->AbsoluteMinX, aio->Mode->AbsoluteMinY, aio->Mode->AbsoluteMinZ,
+				aio->Mode->AbsoluteMaxX, aio->Mode->AbsoluteMaxY, aio->Mode->AbsoluteMaxZ,
+				aio->Mode->Attributes, NULL);
+		}
+	}
+	XmlEndTag(fInfo, "TouchDevices");
+}
+
+VOID
+InfoGraph() {
+	EFI_STATUS res;
+	UINTN i, j;
+	InitGraph();
+	XmlTag(fInfo, "GraphDevices", FALSE, NULL, " count=\"%d\"", gGraphCount, NULL);
+	FileAsciiPrint(fInfo, "\n");
+	gXmlTabs++;
+	for (i = 0; i < gGraphCount; ++i) {
+		EFI_GRAPHICS_OUTPUT_PROTOCOL *gio;
+		res = GraphGetIO(gGraphHandles[i], &gio);
+		if (!EFI_ERROR(res)) {
+			XmlTag(fInfo, "GraphDevice", FALSE, NULL,
+				" index=\"%d\" modes=\"%d\" H=\"%d\" V=\"%d\"", i,
+				gio->Mode->MaxMode, gio->Mode->Info->HorizontalResolution, gio->Mode->Info->VerticalResolution,
+				NULL);
+			FileAsciiPrint(fInfo, "\n");
+			gXmlTabs++;
+			for (j = 0; j < gio->Mode->MaxMode; ++j) {
+				EFI_GRAPHICS_OUTPUT_MODE_INFORMATION *mode;
+				UINTN sz = sizeof(mode);
+				res = gio->QueryMode(gio, (UINT32)j, &sz, &mode);
+				if (!EFI_ERROR(res)) {
+					XmlTag(fInfo, "GraphMode", TRUE, NULL,
+						" index=\"%d\" H=\"%d\" V=\"%d\"", j,
+						mode->HorizontalResolution, mode->VerticalResolution,
+						NULL);
+				}
+			}
+			XmlEndTag(fInfo, "GraphDevice");
+		}
+	}
+	XmlEndTag(fInfo, "GraphDevices");
+}
+
+VOID
+InfoBluetooth() {
+	InitBluetooth();
+	XmlTag(fInfo, "BluetoothIo", TRUE, NULL, " count=\"%d\"", gBluetoothIoCount, NULL);
+	XmlTag(fInfo, "BluetoothConfig", TRUE, NULL, " count=\"%d\"", gBluetoothConfigCount, NULL);
+	XmlTag(fInfo, "BluetoothHC", TRUE, NULL, " count=\"%d\"", gBluetoothHcCount, NULL);
+}
+
 /**
 The actual entry point for the application.
 
@@ -188,103 +305,32 @@ DcsInfoMain(
 {
    EFI_STATUS          res;
 //	EFI_INPUT_KEY       key;
-	EFI_FILE            *info;
-	UINTN               i;
-	UINTN               j;
 	InitBio();
    res = InitFS();
    if (EFI_ERROR(res)) {
       ERR_PRINT(L"InitFS %r\n", res);
 		return res;
    }
-	res = FileOpen(NULL, L"EFI\\VeraCrypt\\PlatformInfo", &info, EFI_FILE_MODE_READ | EFI_FILE_MODE_CREATE | EFI_FILE_MODE_WRITE, 0);
+	res = FileOpen(NULL, L"EFI\\VeraCrypt\\PlatformInfo", &fInfo, EFI_FILE_MODE_READ | EFI_FILE_MODE_CREATE | EFI_FILE_MODE_WRITE, 0);
 	if (EFI_ERROR(res)) {
 		ERR_PRINT(L"PlatformInfo create %r\n", res);
 		return res;
 	}
-	FileAsciiPrint(info, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
-	XmlStartTag(info, "PlatformInfo");
+	FileAsciiPrint(fInfo, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
+	XmlStartTag(fInfo, "PlatformInfo");
+	// General info
+	InfoEFI();
+	InfoSystem();
 
-	XmlStartTag(info, "EFI");
-	XmlTag(info, "Version", FALSE, NULL, NULL);
-	XmlEndTagPrint(info, "Version", "%d.%d", gST->Hdr.Revision >> 16, gST->Hdr.Revision & 0xFFFF);
-	XmlTag(info, "Vendor", FALSE, NULL, NULL);
-	XmlEndTagPrint(info, "Vendor", "%s", gST->FirmwareVendor);
-	XmlTag(info, "Revision", FALSE, NULL, NULL);
-	XmlEndTagPrint(info, "Revision", "0x0%x", gST->FirmwareRevision);
-	XmlEndTag(info, "EFI");
-
-	res = SMBIOSGetSerials();
-	if (!EFI_ERROR(res)) {
-//		XmlTag(info, "System",FALSE, NULL, NULL);
-		XmlStartTag(info, "System");
-		XmlTag(info, "Manufacture", TRUE, gSmbSystemManufacture, NULL);
-		XmlTag(info, "Model", TRUE, gSmbSystemModel, NULL);
-		XmlTag(info, "Version", TRUE, gSmbSystemVersion, NULL);
-		XmlEndTag(info, "System");
-		XmlStartTag(info, "BIOS");
-		XmlTag(info, "Vendor", TRUE, gSmbBiosVendor, NULL);
-		XmlTag(info, "Version", TRUE, gSmbBiosVersion, NULL);
-		XmlTag(info, "Date", TRUE, gSmbBiosDate, NULL);
-		XmlEndTag(info, "BIOS");
-	}
 	// Devices info
-	InitTcg();
-	XmlTag(info, "TPM12", TRUE, NULL, " count=\"%d\"", gTcgCount, NULL);
-	XmlTag(info, "TPM20", TRUE, NULL, " count=\"%d\"", gTcg2Count, NULL);
-	XmlTag(info, "BlockDevices", TRUE, NULL, " count=\"%d\"", gBIOCount, NULL);
-	InitUsb();
-	XmlTag(info, "UsbDevices", TRUE, NULL, " count=\"%d\"", gUSBCount, NULL);
-	InitTouch();
-	XmlTag(info, "TouchDevices", FALSE, NULL, " count=\"%d\"", gTouchCount, NULL);
-	FileAsciiPrint(info, "\n");
-	gXmlTabs++;
-	for (i = 0; i < gTouchCount; ++i) {
-		EFI_ABSOLUTE_POINTER_PROTOCOL *aio;
-		res = TouchGetIO(gTouchHandles[i], &aio);
-		if (!EFI_ERROR(res)) {
-			XmlTag(info, "TouchDevice", TRUE, NULL, 
-				" index=\"%d\" minx=\"%d\" miny=\"%d\" minz=\"%d\" maxx=\"%d\" maxy=\"%d\" maxz=\"%d\" attr=\"0x0%x\"", i, 
-				aio->Mode->AbsoluteMinX, aio->Mode->AbsoluteMinY, aio->Mode->AbsoluteMinZ, 
-				aio->Mode->AbsoluteMaxX, aio->Mode->AbsoluteMaxY, aio->Mode->AbsoluteMaxZ, 
-				aio->Mode->Attributes, NULL);
-		}
-	}
-	XmlEndTag(info, "TouchDevices");
-	InitGraph();
-	XmlTag(info, "GraphDevices", FALSE, NULL, " count=\"%d\"", gGraphCount, NULL);
-	FileAsciiPrint(info, "\n");
-	gXmlTabs++;
-	for (i = 0; i < gGraphCount; ++i) {
-		EFI_GRAPHICS_OUTPUT_PROTOCOL *gio;
-		res = GraphGetIO(gGraphHandles[i], &gio);
-		if (!EFI_ERROR(res)) {
-			XmlTag(info, "GraphDevice", FALSE, NULL,
-				" index=\"%d\" modes=\"%d\" H=\"%d\" V=\"%d\"", i,
-				gio->Mode->MaxMode, gio->Mode->Info->HorizontalResolution, gio->Mode->Info->VerticalResolution,
-				NULL);
-			FileAsciiPrint(info, "\n");
-			gXmlTabs++;
-			for (j = 0; j < gio->Mode->MaxMode; ++j) {
-				EFI_GRAPHICS_OUTPUT_MODE_INFORMATION *mode;
-				UINTN sz = sizeof(mode);
-				res = gio->QueryMode(gio, (UINT32)j, &sz, &mode);
-				if (!EFI_ERROR(res)) {
-					XmlTag(info, "GraphMode", TRUE, NULL,
-						" index=\"%d\" H=\"%d\" V=\"%d\"", j,
-						mode->HorizontalResolution, mode->VerticalResolution,
-						NULL);
-				}
-			}
-			XmlEndTag(info, "GraphDevice");
-		}
-	}
-	XmlEndTag(info, "GraphDevices");
-	InitBluetooth();
-	XmlTag(info, "BluetoothIo", TRUE, NULL, " count=\"%d\"", gBluetoothIoCount, NULL);
-	XmlTag(info, "BluetoothConfig", TRUE, NULL, " count=\"%d\"", gBluetoothConfigCount, NULL);
-	XmlTag(info, "BluetoothHC", TRUE, NULL, " count=\"%d\"", gBluetoothHcCount, NULL);
-	XmlEndTag(info, "PlatformInfo");
-	FileClose(info);
+	InfoTcg();
+	InfoBlockDevices();
+	InfoUsbDevices();
+	InfoTouch();
+	InfoGraph();
+	InfoBluetooth();
+	XmlEndTag(fInfo, "PlatformInfo");
+
+	FileClose(fInfo);
 	return EFI_SUCCESS;
 }

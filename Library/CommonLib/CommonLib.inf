@@ -36,6 +36,8 @@
   EfiExec.c
   EfiUsb.c
   EfiTouch.c
+  EfiBluetooth.c
+  EfiTpm.c
 
 [Sources.IA32]
   IA32/EfiCpuHalt.asm
@@ -63,3 +65,8 @@
   gEfiAbsolutePointerProtocolGuid
   gEfiGraphicsOutputProtocolGuid
   gEfiSimpleTextOutProtocolGuid
+  gEfiBluetoothIoProtocolGuid
+  gEfiBluetoothHcProtocolGuid
+  gEfiBluetoothConfigProtocolGuid
+  gEfiTcgProtocolGuid
+  gEfiTcg2ProtocolGuid

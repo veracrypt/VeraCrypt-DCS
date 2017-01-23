@@ -31,6 +31,7 @@ https://opensource.org/licenses/LGPL-3.0
 #include "common/Crc.h"
 #include "crypto/cpu.h"
 #include "BootCommon.h"
+#include "DcsConfig.h"
 #include "DcsVeraCrypt.h"
 #include <Guid/EventGroup.h>
 

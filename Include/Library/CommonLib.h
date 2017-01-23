@@ -137,6 +137,33 @@ EfiFindPartByGUID(
 	);
 
 //////////////////////////////////////////////////////////////////////////
+// Bluetooth
+//////////////////////////////////////////////////////////////////////////
+extern EFI_HANDLE* gBluetoothIoHandles;
+extern UINTN       gBluetoothIoCount;
+
+extern EFI_HANDLE* gBluetoothHcHandles;
+extern UINTN       gBluetoothHcCount;
+
+extern EFI_HANDLE* gBluetoothConfigHandles;
+extern UINTN       gBluetoothConfigCount;
+
+EFI_STATUS
+InitBluetooth();
+
+//////////////////////////////////////////////////////////////////////////
+// TCG
+//////////////////////////////////////////////////////////////////////////
+extern EFI_HANDLE* gTcgHandles;
+extern UINTN       gTcgCount;
+
+extern EFI_HANDLE* gTcg2Handles;
+extern UINTN       gTcg2Count;
+
+EFI_STATUS
+InitTcg();
+
+//////////////////////////////////////////////////////////////////////////
 // USB
 //////////////////////////////////////////////////////////////////////////
 extern EFI_HANDLE* gUSBHandles;
@@ -509,6 +536,13 @@ FileWrite(
    IN       VOID*       data,
    IN OUT   UINTN*      bytes,
    IN OUT   UINT64*     position);
+
+UINTN
+FileAsciiPrint(
+	IN EFI_FILE            *f,
+	IN CONST CHAR8         *format,
+	...
+	);
 
 EFI_STATUS
 FileGetInfo(

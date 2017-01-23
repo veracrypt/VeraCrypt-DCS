@@ -97,5 +97,6 @@
   DcsPkg/DcsCfg/DcsCfg.inf
   DcsPkg/DcsBoot/DcsBoot.inf
   DcsPkg/DcsRe/DcsRe.inf
+  DcsPkg/DcsInfo/DcsInfo.inf
   DcsPkg/DcsBml/DcsBml.inf
   DcsPkg/LegacySpeaker/LegacySpeaker.inf

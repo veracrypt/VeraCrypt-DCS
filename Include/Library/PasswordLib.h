@@ -63,8 +63,16 @@ AskConsolePwdInt(
 extern EFI_GUID*                     gSmbSystemUUID;        // Universal unique ID 
 extern CHAR8*                        gSmbSystemSerial;      // System serial
 extern CHAR8*                        gSmbSystemSKU;         // SKU number
+extern CHAR8*                        gSmbSystemManufacture;     // computer manufacture
+extern CHAR8*                        gSmbSystemModel;           // computer model
+extern CHAR8*                        gSmbSystemVersion;         // computer version
+
 extern CHAR8*                        gSmbBaseBoardSerial;       // Base board serial
 extern UINT64*                       gSmbProcessorID;           // Processor ID
+
+extern CHAR8*                        gSmbBiosVendor;           // BIOS vendor
+extern CHAR8*                        gSmbBiosVersion;          // BIOS version
+extern CHAR8*                        gSmbBiosDate;             // BIOS date
 
 EFI_STATUS
 SMBIOSGetSerials();

@@ -23,62 +23,11 @@ https://opensource.org/licenses/Apache-2.0
 
 #include <common/Password.h>
 #include "common/Crypto.h"
-#include "common/Xml.h"
 #include "common/Crc.h"
 #include "BootCommon.h"
 #include "Library/DcsTpmLib.h"
+#include <DcsConfig.h>
 
-//////////////////////////////////////////////////////////////////////////
-// Config
-//////////////////////////////////////////////////////////////////////////
-char *gConfigBuffer = NULL;
-UINTN	gConfigBufferSize = 0;
-
-BOOL ConfigRead(char *configKey, char *configValue, int maxValueSize)
-{
-	char *xml;
-
-	if (gConfigBuffer == NULL) {
-		if (FileLoad(NULL, L"\\EFI\\VeraCrypt\\DcsProp", &gConfigBuffer, &gConfigBufferSize) != EFI_SUCCESS) {
-			return FALSE;
-		}
-	}
-
-	xml = gConfigBuffer;
-	if (xml != NULL)
-	{
-		xml = XmlFindElementByAttributeValue(xml, "config", "key", configKey);
-		if (xml != NULL)
-		{
-			XmlGetNodeText(xml, configValue, maxValueSize);
-			return TRUE;
-		}
-	}
-
-	return FALSE;
-}
-
-int ConfigReadInt(char *configKey, int defaultValue)
-{
-	char s[32];
-	if (ConfigRead(configKey, s, sizeof(s))) {
-		if (*s == '-') {
-			return (-1) * (int)AsciiStrDecimalToUintn(&s[1]);
-		}
-		return (int)AsciiStrDecimalToUintn(s);
-	}
-	else
-		return defaultValue;
-}
-
-
-char *ConfigReadString(char *configKey, char *defaultValue, char *str, int maxLen)
-{
-	if (!ConfigRead(configKey, str, maxLen)) {
-		AsciiStrCpyS(str, maxLen, defaultValue);
-	}
-	return str;
-}
 
 
 ///////////////////////////////////////////////////////////////////////////

@@ -16,6 +16,7 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Library/CommonLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/DevicePathLib.h>
+#include "DcsConfig.h"
 
 EFI_GUID          ImagePartGuid;
 EFI_GUID          *gEfiExecPartGuid = &ImagePartGuid;
@@ -41,12 +42,19 @@ DcsBootMain(
    EFI_STATUS          res;
 	UINTN               len;
 	UINT32              attr;
+	int                 drvInst;
 	InitBio();
    res = InitFS();
    if (EFI_ERROR(res)) {
       ERR_PRINT(L"InitFS %r\n", res);
    }
 
+	drvInst = ConfigReadInt("DcsDriver", 0);
+
+	if (!FileExist(NULL, L"\\EFI\\VeraCrypt\\PlatformInfo") &&
+		!FileExist(NULL, L"\\EFI\\VeraCrypt\\DcsInfo.dcs")) {
+		res = EfiExec(NULL, L"\\EFI\\VeraCrypt\\DcsInfo.dcs");
+	}
 	// Load all drivers
 	res = EfiExec(NULL, L"\\EFI\\VeraCrypt\\LegacySpeaker.dcs");
 

@@ -33,6 +33,7 @@ call SecureBoot\efi_sign.bat ..\Build\DcsPkg\%dcstype%_%dcsbldtoolset%\%dcsarch%
 call SecureBoot\efi_sign.bat ..\Build\DcsPkg\%dcstype%_%dcsbldtoolset%\%dcsarch%\DcsCfg.efi        SecureBoot\keys\DCS_sign.pfx SecureBoot\certs\DCS_sign.crt
 call SecureBoot\efi_sign.bat ..\Build\DcsPkg\%dcstype%_%dcsbldtoolset%\%dcsarch%\DcsInt.efi        SecureBoot\keys\DCS_sign.pfx SecureBoot\certs\DCS_sign.crt
 call SecureBoot\efi_sign.bat ..\Build\DcsPkg\%dcstype%_%dcsbldtoolset%\%dcsarch%\DcsRe.efi         SecureBoot\keys\DCS_sign.pfx SecureBoot\certs\DCS_sign.crt
+call SecureBoot\efi_sign.bat ..\Build\DcsPkg\%dcstype%_%dcsbldtoolset%\%dcsarch%\DcsInfo.efi       SecureBoot\keys\DCS_sign.pfx SecureBoot\certs\DCS_sign.crt
 call SecureBoot\efi_sign.bat ..\Build\DcsPkg\%dcstype%_%dcsbldtoolset%\%dcsarch%\LegacySpeaker.efi SecureBoot\keys\DCS_sign.pfx SecureBoot\certs\DCS_sign.crt
 
 :exit

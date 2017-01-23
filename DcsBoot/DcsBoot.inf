@@ -16,7 +16,7 @@
   INF_VERSION                    = 0x00010006
   BASE_NAME                      = DcsBoot
   FILE_GUID                      = DE8AB4B2-EB47-44E1-A4D7-1001E5E9F0A5
-  MODULE_TYPE                    = UEFI_APPLICATION
+  MODULE_TYPE                    = UEFI_DRIVER
   VERSION_STRING                 = 1.0
   ENTRY_POINT                    = DcsBootMain
 
@@ -36,11 +36,12 @@
   DcsPkg/DcsPkg.dec
 
 [LibraryClasses]
-  UefiApplicationEntryPoint
+  UefiDriverEntryPoint
   UefiLib
   BaseLib
   MemoryAllocationLib
   CommonLib
+  VeraCryptLib
 
 [Guids]
   gEfiGlobalVariableGuid

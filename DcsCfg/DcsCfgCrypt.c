@@ -143,6 +143,7 @@ ChangePassword(
 	EFI_STATUS              res;
 	PCRYPTO_INFO            cryptoInfo, ci;
 	int                     vcres;
+	BOOL                    modified = FALSE;
 
 	res = RndPreapare();
 	if (EFI_ERROR(res)) {
@@ -157,57 +158,66 @@ ChangePassword(
 	res = TryHeaderDecrypt(header, &cryptoInfo, NULL);
 	if (EFI_ERROR(res)) return res;
 
-	if (AskConfirm("Change pwd[N]?", 1)) {
-		return EFI_INVALID_PARAMETER;
-	}
+	if (AskConfirm("Change password[N]?", 1)) {
+		modified = TRUE;
+		do {
+			ZeroMem(&newPassword, sizeof(newPassword));
+			ZeroMem(&confirmPassword, sizeof(newPassword));
+			VCAskPwd(AskPwdNew, &newPassword);
+			if (gAuthPwdCode == AskPwdRetCancel) {
+				return EFI_NOT_READY;
+			}
+			VCAskPwd(AskPwdConfirm, &confirmPassword);
+			if (gAuthPwdCode == AskPwdRetCancel) {
+				MEM_BURN(&newPassword, sizeof(newPassword));
+				return EFI_NOT_READY;
+			}
+			if (newPassword.Length == confirmPassword.Length) {
+				if (CompareMem(newPassword.Text, confirmPassword.Text, confirmPassword.Length) == 0) {
+					gAuthPassword = newPassword;
+					break;
+				}
+			}
 
-	do {
-		ZeroMem(&newPassword, sizeof(newPassword));
-		ZeroMem(&confirmPassword, sizeof(newPassword));
-		VCAskPwd(AskPwdNew, &newPassword);
-		if (gAuthPwdCode == AskPwdRetCancel) {
-			return EFI_NOT_READY;
-		}
-		VCAskPwd(AskPwdConfirm, &confirmPassword);
-		if (gAuthPwdCode == AskPwdRetCancel) {
-			MEM_BURN(&newPassword, sizeof(newPassword));
-			return EFI_NOT_READY;
-		}
-		if (newPassword.Length == confirmPassword.Length) {
-			if (CompareMem(newPassword.Text, confirmPassword.Text, confirmPassword.Length) == 0) {
+			if (AskConfirm("Password mismatch, retry[N]?", 1)) {
 				break;
 			}
-		}
-		if (AskConfirm("Password mismatch, retry?", 1)) {
+		} while (TRUE);
+	}
+
+	if (AskConfirm("Change range of encrypted sectors[N]?", 1)) {
+		modified = TRUE;
+		cryptoInfo->VolumeSize.Value = AskUINT64("Volume size", cryptoInfo->VolumeSize.Value >> 9) << 9;
+		cryptoInfo->EncryptedAreaStart.Value = AskUINT64("Encrypted area start", cryptoInfo->EncryptedAreaStart.Value >> 9) << 9;
+		cryptoInfo->EncryptedAreaLength.Value = AskUINT64("Encrypted area length", cryptoInfo->EncryptedAreaLength.Value >> 9) << 9;
+	}
+
+	if (modified) {
+		vcres = CreateVolumeHeaderInMemory(
+			gAuthBoot, header,
+			cryptoInfo->ea,
+			cryptoInfo->mode,
+			&gAuthPassword,
+			cryptoInfo->pkcs5,
+			gAuthPim,
+			cryptoInfo->master_keydata,
+			&ci,
+			cryptoInfo->VolumeSize.Value,
+			cryptoInfo->hiddenVolumeSize,
+			cryptoInfo->EncryptedAreaStart.Value,
+			cryptoInfo->EncryptedAreaLength.Value,
+			gAuthTc ? 0 : cryptoInfo->RequiredProgramVersion,
+			cryptoInfo->HeaderFlags,
+			cryptoInfo->SectorSize,
+			FALSE);
+
+		MEM_BURN(&newPassword, sizeof(newPassword));
+		MEM_BURN(&confirmPassword, sizeof(confirmPassword));
+
+		if (vcres != 0) {
+			ERR_PRINT(L"header create error(%x)\n", vcres);
 			return EFI_INVALID_PARAMETER;
 		}
-	} while (TRUE);
-
-	vcres = CreateVolumeHeaderInMemory(
-		gAuthBoot, header,
-		cryptoInfo->ea,
-		cryptoInfo->mode,
-		&newPassword,
-		cryptoInfo->pkcs5,
-		gAuthPim,
-		cryptoInfo->master_keydata,
-		&ci,
-		cryptoInfo->VolumeSize.Value,
-		cryptoInfo->hiddenVolumeSize,
-		cryptoInfo->EncryptedAreaStart.Value,
-		cryptoInfo->EncryptedAreaLength.Value,
-		gAuthTc ? 0 : cryptoInfo->RequiredProgramVersion,
-		cryptoInfo->HeaderFlags,
-		cryptoInfo->SectorSize,
-		FALSE);
-		
-		
-	MEM_BURN(&newPassword, sizeof(newPassword));
-	MEM_BURN(&confirmPassword, sizeof(confirmPassword));
-
-	if (vcres != 0) {
-		ERR_PRINT(L"header create error(%x)\n", vcres);
-		return EFI_INVALID_PARAMETER;
 	}
 	return EFI_SUCCESS;
 }

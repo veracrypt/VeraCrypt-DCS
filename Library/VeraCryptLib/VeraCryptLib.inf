@@ -62,6 +62,8 @@ crypto\Camellia.c
 crypto\Camellia.h
 crypto\cpu.c
 crypto\cpu.h
+DcsConfig.c
+DcsConfig.h
 DcsVeraCrypt.c
 DcsVeraCrypt.h
 

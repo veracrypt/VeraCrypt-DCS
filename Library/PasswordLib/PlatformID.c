@@ -24,8 +24,18 @@ SMBIOS_TABLE_ENTRY_POINT*     gSmbTable = NULL;
 EFI_GUID*                     gSmbSystemUUID = NULL;           // Universal unique ID 
 CHAR8*                        gSmbSystemSerial = NULL;         // System serial
 CHAR8*                        gSmbSystemSKU = NULL;            // SKU number
+CHAR8*                        gSmbSystemManufacture = NULL;    // computer manufacture
+CHAR8*                        gSmbSystemModel = NULL;          // computer model
+CHAR8*                        gSmbSystemVersion = NULL;        // computer version
+
 CHAR8*                        gSmbBaseBoardSerial = NULL;      // Base board serial
 UINT64*                       gSmbProcessorID = NULL;          // Processor ID
+
+CHAR8*                        gSmbBiosVendor = NULL;           // BIOS vendor
+CHAR8*                        gSmbBiosVersion = NULL;          // BIOS version
+CHAR8*                        gSmbBiosDate = NULL;             // BIOS date
+
+
 
 UINTN        gBioIndexAuth = 0;
 typedef struct _DCS_AUTH_DATA_MARK {
@@ -81,9 +91,18 @@ SMBIOSGetSerials()
 	endOfTable = pSMBIOS.Raw + gSmbTable->TableLength;
 	do {
 		SMBIOS_STRUCTURE* smbtbl = (SMBIOS_STRUCTURE*)pos;
+		// BIOS information
+		if (smbtbl->Type == 0) {
+			gSmbBiosVendor = SMBIOSGetString(1, smbtbl, endOfTable);
+			gSmbBiosVersion = SMBIOSGetString(2, smbtbl, endOfTable);
+			gSmbBiosDate = SMBIOSGetString(3, smbtbl, endOfTable);
+		}
 		// System info
 		if (smbtbl->Type == 1) {
 			gSmbSystemUUID = (EFI_GUID*)&pos[8];
+			gSmbSystemManufacture = SMBIOSGetString(1, smbtbl, endOfTable);
+			gSmbSystemModel = SMBIOSGetString(2, smbtbl, endOfTable);
+			gSmbSystemVersion = SMBIOSGetString(3, smbtbl, endOfTable);
 			gSmbSystemSerial = SMBIOSGetString(4, smbtbl, endOfTable);
 			gSmbSystemSKU = SMBIOSGetString(5, smbtbl, endOfTable);
 		}

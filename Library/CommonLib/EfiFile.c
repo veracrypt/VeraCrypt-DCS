@@ -18,6 +18,7 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Guid/FileInfo.h>
 #include <Guid/FileSystemInfo.h>
 #include <Library/BaseMemoryLib.h>
+#include <Library/PrintLib.h>
 
 //////////////////////////////////////////////////////////////////////////
 // EFI file 
@@ -149,6 +150,24 @@ FileWrite(
       f->GetPosition(f, position);
    }
    return res;
+}
+
+CHAR8 gFileAsciiPrintBuffer[1024];
+
+UINTN
+FileAsciiPrint(
+	IN EFI_FILE            *f,
+	IN CONST CHAR8         *format,
+	...
+	) {
+	VA_LIST  marker;
+	UINTN    len;
+	if (f == NULL) return 0;
+	VA_START(marker, format);
+	len = AsciiVSPrint((CHAR8*)gFileAsciiPrintBuffer, sizeof(gFileAsciiPrintBuffer), format, marker);
+	VA_END(marker);
+	f->Write(f, &len, gFileAsciiPrintBuffer);
+	return len;
 }
 
 EFI_STATUS

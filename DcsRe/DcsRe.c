@@ -80,8 +80,8 @@ SelectEfiVolume()
 			else {
 				OUT_PRINT(L"%V [Boot] %N");
 			}
-			EfiPrintDevicePath(gFSHandles[i]);
 		}
+		EfiPrintDevicePath(gFSHandles[i]);
 		OUT_PRINT(L"\n");
 	}
 

@@ -38,6 +38,7 @@
   EfiTouch.c
   EfiBluetooth.c
   EfiTpm.c
+  GptRead.c
 
 [Sources.IA32]
   IA32/EfiCpuHalt.asm

@@ -21,6 +21,7 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Protocol/UsbIo.h>
 #include <Protocol/AbsolutePointer.h>
 #include <Guid/FileInfo.h>
+#include <Uefi/UefiGpt.h>
 
 //////////////////////////////////////////////////////////////////////////
 // Check error 
@@ -134,6 +135,42 @@ EFI_STATUS
 EfiFindPartByGUID(
 	IN   EFI_GUID*               guid,
 	OUT  EFI_HANDLE*             h
+	);
+
+//////////////////////////////////////////////////////////////////////////
+// GPT
+//////////////////////////////////////////////////////////////////////////
+
+BOOLEAN
+GptHeaderCheckCrc(
+	IN UINTN                 MaxSize,
+	IN OUT EFI_TABLE_HEADER  *Hdr
+	);
+
+EFI_STATUS
+GptCheckEntryArray(
+	IN  EFI_PARTITION_TABLE_HEADER  *PartHeader,
+	IN  EFI_PARTITION_ENTRY         *Entrys
+	);
+
+EFI_STATUS
+GptUpdateCRC(
+	IN  EFI_PARTITION_TABLE_HEADER  *PartHeader,
+	IN  EFI_PARTITION_ENTRY         *Entrys
+	);
+
+EFI_STATUS
+GptReadEntryArray(
+	IN  EFI_BLOCK_IO_PROTOCOL*      BlockIo,
+	IN  EFI_PARTITION_TABLE_HEADER  *PartHeader,
+	OUT EFI_PARTITION_ENTRY         **Entrys
+	);
+
+EFI_STATUS
+GptReadHeader(
+	IN  EFI_BLOCK_IO_PROTOCOL*      BlockIo,
+	IN  EFI_LBA                     HeaderLba,
+	OUT EFI_PARTITION_TABLE_HEADER  **PartHeader
 	);
 
 //////////////////////////////////////////////////////////////////////////

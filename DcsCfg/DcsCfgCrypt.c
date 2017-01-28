@@ -187,9 +187,9 @@ ChangePassword(
 
 	if (AskConfirm("Change range of encrypted sectors[N]?", 1)) {
 		modified = TRUE;
-		cryptoInfo->VolumeSize.Value = AskUINT64("Volume size", cryptoInfo->VolumeSize.Value >> 9) << 9;
-		cryptoInfo->EncryptedAreaStart.Value = AskUINT64("Encrypted area start", cryptoInfo->EncryptedAreaStart.Value >> 9) << 9;
-		cryptoInfo->EncryptedAreaLength.Value = AskUINT64("Encrypted area length", cryptoInfo->EncryptedAreaLength.Value >> 9) << 9;
+		cryptoInfo->VolumeSize.Value = AskUINT64("Volume size:", cryptoInfo->VolumeSize.Value >> 9) << 9;
+		cryptoInfo->EncryptedAreaStart.Value = AskUINT64("Encrypted area start:", cryptoInfo->EncryptedAreaStart.Value >> 9) << 9;
+		cryptoInfo->EncryptedAreaLength.Value = AskUINT64("Encrypted area length:", cryptoInfo->EncryptedAreaLength.Value >> 9) << 9;
 	}
 
 	if (modified) {

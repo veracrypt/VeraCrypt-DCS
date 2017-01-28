@@ -16,7 +16,9 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Library/CommonLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/DevicePathLib.h>
+#include <Library/BaseMemoryLib.h>
 #include "DcsConfig.h"
+#include <Guid/Gpt.h>
 
 EFI_GUID          ImagePartGuid;
 EFI_GUID          *gEfiExecPartGuid = &ImagePartGuid;
@@ -43,6 +45,7 @@ DcsBootMain(
 	UINTN               len;
 	UINT32              attr;
 	int                 drvInst;
+	BOOLEAN             searchOnESP = FALSE;
 	InitBio();
    res = InitFS();
    if (EFI_ERROR(res)) {
@@ -51,8 +54,8 @@ DcsBootMain(
 
 	drvInst = ConfigReadInt("DcsDriver", 0);
 
-	if (!FileExist(NULL, L"\\EFI\\VeraCrypt\\PlatformInfo") &&
-		!FileExist(NULL, L"\\EFI\\VeraCrypt\\DcsInfo.dcs")) {
+	if (EFI_ERROR(FileExist(NULL, L"\\EFI\\VeraCrypt\\PlatformInfo")) &&
+		!EFI_ERROR(FileExist(NULL, L"\\EFI\\VeraCrypt\\DcsInfo.dcs"))) {
 		res = EfiExec(NULL, L"\\EFI\\VeraCrypt\\DcsInfo.dcs");
 	}
 	// Load all drivers
@@ -83,11 +86,40 @@ DcsBootMain(
 		gEfiExecCmd = gEfiExecCmdDefault;
 	}
 
+	searchOnESP = CompareGuid(gEfiExecPartGuid, &ImagePartGuid) &&
+		EFI_ERROR(FileExist(NULL, gEfiExecCmd));
+
 	// Find new start partition
    ConnectAllEfi();
 	InitBio();
 	res = InitFS();
-//	OUT_PRINT(L".");
+
+	// Default load of bootmgfw?
+	if (searchOnESP) {
+		// gEfiExecCmd is not found on start partition. Try from ESP
+		EFI_BLOCK_IO_PROTOCOL *bio = NULL;
+		EFI_PARTITION_TABLE_HEADER *gptHdr = NULL;
+		EFI_PARTITION_ENTRY        *gptEntry = NULL;
+		HARDDRIVE_DEVICE_PATH hdp;
+		EFI_HANDLE disk;
+		if (!EFI_ERROR(res = EfiGetPartDetails(gFileRootHandle, &hdp, &disk))) {
+			if ((bio = EfiGetBlockIO(disk)) != NULL) {
+				if (!EFI_ERROR(res = GptReadHeader(bio, 1, &gptHdr)) &&
+					!EFI_ERROR(res = GptReadEntryArray(bio, gptHdr, &gptEntry))) {
+					UINT32 i;
+					for (i = 0; i < gptHdr->NumberOfPartitionEntries; ++i) {
+						if (CompareGuid(&gptEntry[i].PartitionTypeGUID, &gEfiPartTypeSystemPartGuid)) {
+							// select ESP GUID
+							CopyGuid(gEfiExecPartGuid, &gptEntry[i].UniquePartitionGUID);
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	//	OUT_PRINT(L".");
 	res = EfiFindPartByGUID(gEfiExecPartGuid, &gFileRootHandle);
 	if (EFI_ERROR(res)) {
 		ERR_PRINT(L"\nCan't find start partition %g\n", gEfiExecPartGuid);

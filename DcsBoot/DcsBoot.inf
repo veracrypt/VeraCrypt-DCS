@@ -47,6 +47,7 @@
   gEfiGlobalVariableGuid
   gEfiDcsVariableGuid
   gEfiFileInfoGuid
+  gEfiPartTypeSystemPartGuid
 
 [Protocols]
   gEfiBlockIoProtocolGuid

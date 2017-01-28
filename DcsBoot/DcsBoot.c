@@ -19,11 +19,15 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Library/BaseMemoryLib.h>
 #include "DcsConfig.h"
 #include <Guid/Gpt.h>
+#include <Guid/GlobalVariable.h>
 
 EFI_GUID          ImagePartGuid;
 EFI_GUID          *gEfiExecPartGuid = &ImagePartGuid;
 CHAR16            *gEfiExecCmdDefault = L"\\EFI\\Microsoft\\Boot\\Bootmgfw.efi";
 CHAR16            *gEfiExecCmd = NULL;
+
+CHAR16* sDcsBootEfi = L"EFI\\VeraCrypt\\DcsBoot.efi";
+CHAR16* sDcsDriverEfiDesc = L"VeraCrypt(DCS) driver";
 /**
 The actual entry point for the application.
 
@@ -46,18 +50,64 @@ DcsBootMain(
 	UINT32              attr;
 	int                 drvInst;
 	BOOLEAN             searchOnESP = FALSE;
+	EFI_INPUT_KEY       key;
+
 	InitBio();
    res = InitFS();
    if (EFI_ERROR(res)) {
       ERR_PRINT(L"InitFS %r\n", res);
    }
+	// Check multiple execution
+	res = EfiGetVar(L"DcsExecPartGuid", NULL, &gEfiExecPartGuid, &len, &attr);
+	if (!EFI_ERROR(res)) {
+		// DcsBoot executed already.
+		ERR_PRINT(L"Multiple execution of DcsBoot\n");
+		MEM_FREE(gEfiExecPartGuid);
+		return EFI_INVALID_PARAMETER;
+	}
 
+	// Driver load selected?
 	drvInst = ConfigReadInt("DcsDriver", 0);
+	if (drvInst) {
+		CHAR16* tmp = NULL;
+		// Driver installed?
+		res = EfiGetVar(L"DriverDC5B", &gEfiGlobalVariableGuid, &tmp, &len, &attr);
+		if (EFI_ERROR(res)) {
+			// No - install and reboot.
+			res = BootMenuItemCreate(L"DriverDC5B", sDcsDriverEfiDesc, gFileRootHandle, sDcsBootEfi, FALSE);
+			if (!EFI_ERROR(res)) {
+				len = 0;
+				res = EfiGetVar(L"DriverOrder", &gEfiGlobalVariableGuid, &tmp, &len, &attr);
+				if (!EFI_ERROR(res)) len = len / 2;
+				res = BootOrderInsert(L"DriverOrder", len, 0x0DC5B);
+				OUT_PRINT(L"DcsBoot driver installed, %r\n", res);
+				key = KeyWait(L"%2d   \r", 10, 0, 0);
+				gST->RuntimeServices->ResetSystem(EfiResetCold, EFI_SUCCESS, 0, NULL);
+				return res;
+			}
+			ERR_PRINT(L"Failed to install DcsBoot driver. %r\n", res);
+			key = KeyWait(L"%2d   \r", 10, 0, 0);
+		}
+		MEM_FREE(tmp);
+	}	else {
+		CHAR16* tmp = NULL;
+		// Try uninstall driver
+		res = EfiGetVar(L"DriverDC5B", &gEfiGlobalVariableGuid, &tmp, &len, &attr);
+		if (!EFI_ERROR(res)) {
+			BootMenuItemRemove(L"DriverDC5B");
+			BootOrderRemove(L"DriverOrder", 0x0DC5B);
+			OUT_PRINT(L"DcsBoot driver uninstalled\n");
+			key = KeyWait(L"%2d   \r", 10, 0, 0);
+			gST->RuntimeServices->ResetSystem(EfiResetCold, EFI_SUCCESS, 0, NULL);
+		}
+	}
 
+	// Try platform info
 	if (EFI_ERROR(FileExist(NULL, L"\\EFI\\VeraCrypt\\PlatformInfo")) &&
 		!EFI_ERROR(FileExist(NULL, L"\\EFI\\VeraCrypt\\DcsInfo.dcs"))) {
 		res = EfiExec(NULL, L"\\EFI\\VeraCrypt\\DcsInfo.dcs");
 	}
+
 	// Load all drivers
 	res = EfiExec(NULL, L"\\EFI\\VeraCrypt\\LegacySpeaker.dcs");
 

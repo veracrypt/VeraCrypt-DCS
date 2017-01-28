@@ -80,7 +80,11 @@ BootOrderInsert(
 	UINTN     i;
 	UINTN     j;
 	res = EfiGetVar(OrderVarName, &gEfiGlobalVariableGuid, &varBootOrder, &varBootOrderSize, &varBootOrderAttr);
-	if (EFI_ERROR(res)) return res;
+	if (EFI_ERROR(res)) {
+		res = EfiSetVar(OrderVarName, &gEfiGlobalVariableGuid, &value, 2,
+			EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS);
+		return res;
+	}
 	BootOrderCount = varBootOrderSize / sizeof(UINT16);
 	varBootOrderNew = MEM_ALLOC((BootOrderCount + 1) * sizeof(UINT16));
 	if (BootOrderCount < index) index = BootOrderCount - 1;

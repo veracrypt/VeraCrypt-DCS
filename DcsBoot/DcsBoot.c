@@ -17,6 +17,7 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/DevicePathLib.h>
 #include <Library/BaseMemoryLib.h>
+#include <Library/PrintLib.h>
 #include "DcsConfig.h"
 #include <Guid/Gpt.h>
 #include <Guid/GlobalVariable.h>
@@ -25,6 +26,27 @@ EFI_GUID          ImagePartGuid;
 EFI_GUID          *gEfiExecPartGuid = &ImagePartGuid;
 CHAR16            *gEfiExecCmdDefault = L"\\EFI\\Microsoft\\Boot\\Bootmgfw.efi";
 CHAR16            *gEfiExecCmd = NULL;
+CHAR8             gDoExecCmdMsg[256];
+
+EFI_STATUS
+DoExecCmd() 
+{
+	EFI_STATUS          res;
+	gDoExecCmdMsg[0] = 0;
+	res = EfiFindPartByGUID(gEfiExecPartGuid, &gFileRootHandle);
+	if (!EFI_ERROR(res)) {
+		res = FileOpenRoot(gFileRootHandle, &gFileRoot);
+		if (!EFI_ERROR(res)) {
+			res = EfiExec(NULL, gEfiExecCmd);
+			AsciiSPrint(gDoExecCmdMsg, sizeof(gDoExecCmdMsg), "\nCan't exec %s start partition %g\n", gEfiExecCmd, gEfiExecPartGuid);
+		}	else {
+			AsciiSPrint(gDoExecCmdMsg, sizeof(gDoExecCmdMsg), "\nCan't open start partition %g\n", gEfiExecPartGuid);
+		}
+	}	else {
+		AsciiSPrint(gDoExecCmdMsg, sizeof(gDoExecCmdMsg), "\nCan't find start partition %g\n", gEfiExecPartGuid);
+	}
+	return res;
+}
 
 CHAR16* sDcsBootEfi = L"EFI\\VeraCrypt\\DcsBoot.efi";
 CHAR16* sDcsDriverEfiDesc = L"VeraCrypt(DCS) driver";
@@ -106,6 +128,10 @@ DcsBootMain(
 	if (EFI_ERROR(FileExist(NULL, L"\\EFI\\VeraCrypt\\PlatformInfo")) &&
 		!EFI_ERROR(FileExist(NULL, L"\\EFI\\VeraCrypt\\DcsInfo.dcs"))) {
 		res = EfiExec(NULL, L"\\EFI\\VeraCrypt\\DcsInfo.dcs");
+		if (!EFI_ERROR(res) && 
+			!EFI_ERROR(FileExist(NULL, L"\\EFI\\VeraCrypt\\PlatformInfo"))) {
+			gST->RuntimeServices->ResetSystem(EfiResetCold, EFI_SUCCESS, 0, NULL);
+		}
 	}
 
 	// Load all drivers
@@ -161,34 +187,18 @@ DcsBootMain(
 						if (CompareGuid(&gptEntry[i].PartitionTypeGUID, &gEfiPartTypeSystemPartGuid)) {
 							// select ESP GUID
 							CopyGuid(gEfiExecPartGuid, &gptEntry[i].UniquePartitionGUID);
-							break;
+							res = DoExecCmd();
+							if(EFI_ERROR(res)) continue;
 						}
 					}
 				}
 			}
 		}
+	}	else {
+		res = DoExecCmd();
 	}
 
-	//	OUT_PRINT(L".");
-	res = EfiFindPartByGUID(gEfiExecPartGuid, &gFileRootHandle);
-	if (EFI_ERROR(res)) {
-		ERR_PRINT(L"\nCan't find start partition %g\n", gEfiExecPartGuid);
-		EfiCpuHalt();
-	}
-//	OUT_PRINT(L".");
-	res = FileOpenRoot(gFileRootHandle, &gFileRoot);
-	if (EFI_ERROR(res)) {
-		ERR_PRINT(L"\nCan't open start partition\n");
-		EfiCpuHalt();
-	}
-//	OUT_PRINT(L".");
-	// Try to exec windows loader...
-   res = EfiExec(NULL, gEfiExecCmd);
-   if (EFI_ERROR(res)) {
-      ERR_PRINT(L"\nStart %s - %r\n", gEfiExecCmd, res);
-		EfiCpuHalt();
-   }
-	ERR_PRINT(L"???%r");
+	ERR_PRINT(L"%a\nStatus -  %r", gDoExecCmdMsg, res);
 	EfiCpuHalt();
    return EFI_INVALID_PARAMETER;
 }

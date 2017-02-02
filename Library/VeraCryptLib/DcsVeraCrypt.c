@@ -15,6 +15,7 @@ https://opensource.org/licenses/Apache-2.0
 #include <DcsVeraCrypt.h>
 #include <Uefi.h>
 #include <Library/UefiBootServicesTableLib.h>
+#include <Library/PrintLib.h>
 
 #include <Library/CommonLib.h>
 #include <Library/GraphLib.h>
@@ -72,6 +73,9 @@ UINTN gPlatformKeyFileSize = 0;
 EFI_GUID *gPartitionGuidOS = NULL;
 
 int gDcsBootForce = 1;
+char* gForcePasswordMsg = NULL;
+int gForcePasswordType = 0;
+UINT8 gForcePasswordProgress = 1;
 
 CHAR8* gOnExitFailed = NULL;
 CHAR8* gOnExitSuccess = NULL;
@@ -85,56 +89,24 @@ VOID
 VCAuthLoadConfig() 
 {
 	int tmp;
+	char* strTemp = NULL;
 
 	if (gAuthPasswordMsg != NULL) return; // Already loaded
 
 	SetMem(&gAuthPassword, sizeof(gAuthPassword), 0);
-	{
-		char* passwordPictureAscii = NULL;
-		passwordPictureAscii = MEM_ALLOC(MAX_MSG);
-		gPasswordPictureFileName = MEM_ALLOC(MAX_MSG * 2);
-		ConfigReadString("PasswordPicture", "\\EFI\\VeraCrypt\\login.bmp", passwordPictureAscii, MAX_MSG);
-		AsciiStrToUnicodeStr(passwordPictureAscii, gPasswordPictureFileName);
-		MEM_FREE(passwordPictureAscii);
-	}
-	SetMem(&gAuthPassword, sizeof(gAuthPassword), 0);
 
-	// 
-	gAuthSecRegionSearch = ConfigReadInt("SecRegionSearch", 0);
-	gPlatformLocked = ConfigReadInt("PlatformLocked", 0);
-	gTPMLocked = ConfigReadInt("TPMLocked", 0);
-	gSCLocked = ConfigReadInt("SCLocked", 0);
-	gDcsBootForce = ConfigReadInt("DcsBootForce", 1);
-
-	// Actions for DcsInt
-	gOnExitSuccess = MEM_ALLOC(MAX_MSG);
-	ConfigReadString("ActionSuccess", "Exit", gOnExitSuccess, MAX_MSG);
-	gOnExitNotFound = MEM_ALLOC(MAX_MSG);
-	ConfigReadString("ActionNotFound", "Exit", gOnExitNotFound, MAX_MSG);
-	gOnExitFailed = MEM_ALLOC(MAX_MSG);
-	ConfigReadString("ActionFailed", "Exit", gOnExitFailed, MAX_MSG);
-
-	{
-		char* strTemp = NULL;
-		strTemp = MEM_ALLOC(MAX_MSG);
-		ConfigReadString("PartitionGuidOS", "", strTemp, MAX_MSG);
-		if (strTemp[0] != 0) {
-			EFI_GUID g;
-			if (AsciiStrToGuid(&g, strTemp)) {
-				gPartitionGuidOS = MEM_ALLOC(sizeof(EFI_GUID));
-				if (gPartitionGuidOS != NULL) {
-					memcpy(gPartitionGuidOS, &g, sizeof(g));
-				}
-			}
-		}
-		MEM_FREE(strTemp);
-	}
+	strTemp = MEM_ALLOC(MAX_MSG);
+	gPasswordPictureFileName = MEM_ALLOC(MAX_MSG * 2);
+	ConfigReadString("PasswordPicture", "\\EFI\\VeraCrypt\\login.bmp", strTemp, MAX_MSG);
+	AsciiStrToUnicodeStr(strTemp, gPasswordPictureFileName);
+	MEM_FREE(strTemp);
 
 	gPasswordPictureChars = MEM_ALLOC(MAX_MSG);
 	ConfigReadString("PictureChars", gPasswordPictureCharsDefault, gPasswordPictureChars, MAX_MSG);
 	gPasswordPictureCharsLen = strlen(gPasswordPictureChars);
 
 	gAuthPasswordType = ConfigReadInt("PasswordType", 0);
+
 	gAuthPasswordMsg = MEM_ALLOC(MAX_MSG);
 	ConfigReadString("PasswordMsg", "Password:", gAuthPasswordMsg, MAX_MSG);
 
@@ -150,22 +122,69 @@ VCAuthLoadConfig()
 	gAuthHashMsg = MEM_ALLOC(MAX_MSG);
 	gAuthHashRqt = ConfigReadInt("HashRqt", 1);
 	gAuthHash = ConfigReadInt("Hash", 0);
-	ConfigReadString("HashMsg", "(0) TEST ALL (1) SHA512 (2) WHIRLPOOL (3) SHA256 (4) RIPEMD160\n\rHash:", gAuthHashMsg, MAX_MSG);
 
-   gPasswordProgress = (UINT8)ConfigReadInt("AuthorizeProgress", 1);
-   gPasswordVisible = (UINT8)ConfigReadInt("AuthorizeVisible", 0);
-	gPasswordShowMark = ConfigReadInt("AuthorizeMarkTouch", 1);
+	strTemp = MEM_ALLOC(MAX_MSG);
+	tmp = 1;
+	AsciiSPrint(strTemp, MAX_MSG, "(0) TEST ALL");
+	while (HashGetName(tmp) != NULL && *HashGetName(tmp) != 0)
+	{
+		AsciiSPrint(strTemp, MAX_MSG, "%a (%d) %s", strTemp, tmp, HashGetName(tmp));
+		++tmp;
+	};
+	AsciiSPrint(strTemp, MAX_MSG, "%a \n\rHash:", strTemp);
+	ConfigReadString("HashMsg", strTemp, gAuthHashMsg, MAX_MSG);
+	MEM_FREE(strTemp);
 
-   gAuthStartMsg = MEM_ALLOC(MAX_MSG);
-   ConfigReadString("AuthStartMsg", "Authorizing...\n\r", gAuthStartMsg, MAX_MSG);
-   gAuthErrorMsg = MEM_ALLOC(MAX_MSG);
-   ConfigReadString("AuthErrorMsg", "Authorization failed. Wrong password, PIM or hash.\n\r", gAuthErrorMsg, MAX_MSG);
 
-   gAuthBootRqt = ConfigReadInt("BootRqt", 0);
+	gAuthBootRqt = ConfigReadInt("BootRqt", 0);
 	gAuthTcRqt = ConfigReadInt("TcRqt", 0);
-	gRUD = ConfigReadInt("RUD", 0);
+
+	gPasswordProgress = (UINT8)ConfigReadInt("AuthorizeProgress", 1); // print "*"
+	gPasswordVisible = (UINT8)ConfigReadInt("AuthorizeVisible", 0);   // show chars
+	gPasswordShowMark = ConfigReadInt("AuthorizeMarkTouch", 1);       // show touch points
+
+	gDcsBootForce = ConfigReadInt("DcsBootForce", 1);                 // Ask password even if no USB marked found. 
+
+	gForcePasswordMsg = MEM_ALLOC(MAX_MSG);
+	ConfigReadString("ForcePasswordMsg", gAuthPasswordMsg, gForcePasswordMsg, MAX_MSG);
+	gForcePasswordType = ConfigReadInt("ForcePasswordType", gAuthPasswordType);
+	gForcePasswordProgress = (UINT8)ConfigReadInt("ForcePasswordProgress", gPasswordProgress);
+
 	gAuthRetry = ConfigReadInt("AuthorizeRetry", 10);
+	gAuthStartMsg = MEM_ALLOC(MAX_MSG);
+	ConfigReadString("AuthStartMsg", "Authorizing...\n\r", gAuthStartMsg, MAX_MSG);
+	gAuthErrorMsg = MEM_ALLOC(MAX_MSG);
+	ConfigReadString("AuthErrorMsg", "Authorization failed. Wrong password, PIM or hash.\n\r", gAuthErrorMsg, MAX_MSG);
+
+	gRUD = ConfigReadInt("RUD", 0);
+
 	gRndDefault = ConfigReadInt("Random", 0);
+
+	gAuthSecRegionSearch = ConfigReadInt("SecRegionSearch", 0);
+	gPlatformLocked = ConfigReadInt("PlatformLocked", 0);
+	gTPMLocked = ConfigReadInt("TPMLocked", 0);
+	gSCLocked = ConfigReadInt("SCLocked", 0);
+
+	// Actions for DcsInt
+	gOnExitSuccess = MEM_ALLOC(MAX_MSG);
+	ConfigReadString("ActionSuccess", "Exit", gOnExitSuccess, MAX_MSG);
+	gOnExitNotFound = MEM_ALLOC(MAX_MSG);
+	ConfigReadString("ActionNotFound", "Exit", gOnExitNotFound, MAX_MSG);
+	gOnExitFailed = MEM_ALLOC(MAX_MSG);
+	ConfigReadString("ActionFailed", "Exit", gOnExitFailed, MAX_MSG);
+
+	strTemp = MEM_ALLOC(MAX_MSG);
+	ConfigReadString("PartitionGuidOS", "", strTemp, MAX_MSG);
+	if (strTemp[0] != 0) {
+		EFI_GUID g;
+		if (AsciiStrToGuid(&g, strTemp)) {
+			gPartitionGuidOS = MEM_ALLOC(sizeof(EFI_GUID));
+			if (gPartitionGuidOS != NULL) {
+				memcpy(gPartitionGuidOS, &g, sizeof(g));
+			}
+		}
+	}
+	MEM_FREE(strTemp);
 
 	// touch
 	tmp = ConfigReadInt("TouchDevice", -1);

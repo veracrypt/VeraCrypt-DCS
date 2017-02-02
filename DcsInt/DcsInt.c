@@ -994,20 +994,31 @@ UefiMain(
 		if (!devFound) return OnExit(gOnExitNotFound, OnExitAuthNotFound, EFI_NOT_FOUND);
    }
 
-	// Try to find by OS partition GUID
-	if (SecRegionData == NULL && gPartitionGuidOS != NULL) {
-		UINTN i;
-		for (i = 0; i < gBIOCount; ++i) {
-			EFI_GUID guid;
-			res = EfiGetPartGUID(gBIOHandles[i], &guid);
-			if(EFI_ERROR(res)) continue;
-			if (memcmp(gPartitionGuidOS, &guid, sizeof(guid)) == 0) {
-				res = SecRegionLoadDefault(gBIOHandles[i]);
-				if (EFI_ERROR(res)) {
-					return OnExit(gOnExitNotFound, OnExitAuthNotFound, res);
+	// Force authorization
+	if (SecRegionData == NULL && gDcsBootForce != 0) {
+		res = EFI_NOT_FOUND;
+		if (gPartitionGuidOS != NULL) {
+			// Try to find by OS partition GUID
+			UINTN i;
+			for (i = 0; i < gBIOCount; ++i) {
+				EFI_GUID guid;
+				res = EfiGetPartGUID(gBIOHandles[i], &guid);
+				if (EFI_ERROR(res)) continue;
+				if (memcmp(gPartitionGuidOS, &guid, sizeof(guid)) == 0) {
+					res = SecRegionLoadDefault(gBIOHandles[i]);
+					break;
 				}
 			}
+		}	else {
+			res = SecRegionLoadDefault(gFileRootHandle);
 		}
+		if (EFI_ERROR(res)) {
+			return OnExit(gOnExitNotFound, OnExitAuthNotFound, res);
+		}
+		// force password type and message
+		gAuthPasswordType = gForcePasswordType;
+		gAuthPasswordMsg = gForcePasswordMsg;
+		gPasswordProgress = gForcePasswordProgress;
 	}
 
 	// ask any way? (by DcsBoot flag)

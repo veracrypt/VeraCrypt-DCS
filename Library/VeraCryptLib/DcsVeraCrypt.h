@@ -65,6 +65,9 @@ extern UINTN gPlatformKeyFileSize;
 
 extern EFI_GUID *gPartitionGuidOS;
 extern int gDcsBootForce;
+extern char* gForcePasswordMsg;
+extern int gForcePasswordType;
+extern UINT8 gForcePasswordProgress;
 
 extern CHAR8* gOnExitFailed;
 extern CHAR8* gOnExitSuccess;

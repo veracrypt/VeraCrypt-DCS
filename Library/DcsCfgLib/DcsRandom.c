@@ -22,7 +22,7 @@ https://opensource.org/licenses/LGPL-3.0
 
 #include <common/Pkcs5.h>
 #include <crypto/sha2.h>
-#include "../../Include/Library/DcsTpmLib.h"
+#include <Library/DcsTpmLib.h>
 
 DCS_RND* gRnd = NULL;
 

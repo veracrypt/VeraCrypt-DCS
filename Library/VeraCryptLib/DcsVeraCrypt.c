@@ -85,6 +85,10 @@ CHAR8* gOnExitNotFound = NULL;
 // Authorize
 /////////////////////////////////////////////////////////////////////////
 
+#define VCCONFIG_ALLOC(data, size)       \
+        if(data == NULL) MEM_FREE(data); \
+        data = MEM_ALLOC(size);
+
 VOID
 VCAuthLoadConfig() 
 {
@@ -96,30 +100,30 @@ VCAuthLoadConfig()
 	SetMem(&gAuthPassword, sizeof(gAuthPassword), 0);
 
 	strTemp = MEM_ALLOC(MAX_MSG);
-	gPasswordPictureFileName = MEM_ALLOC(MAX_MSG * 2);
+	VCCONFIG_ALLOC(gPasswordPictureFileName, MAX_MSG * 2);
 	ConfigReadString("PasswordPicture", "\\EFI\\VeraCrypt\\login.bmp", strTemp, MAX_MSG);
 	AsciiStrToUnicodeStr(strTemp, gPasswordPictureFileName);
 	MEM_FREE(strTemp);
 
-	gPasswordPictureChars = MEM_ALLOC(MAX_MSG);
+	VCCONFIG_ALLOC(gPasswordPictureChars, MAX_MSG);
 	ConfigReadString("PictureChars", gPasswordPictureCharsDefault, gPasswordPictureChars, MAX_MSG);
 	gPasswordPictureCharsLen = strlen(gPasswordPictureChars);
 
 	gAuthPasswordType = ConfigReadInt("PasswordType", 0);
 
-	gAuthPasswordMsg = MEM_ALLOC(MAX_MSG);
+	VCCONFIG_ALLOC(gAuthPasswordMsg, MAX_MSG);
 	ConfigReadString("PasswordMsg", "Password:", gAuthPasswordMsg, MAX_MSG);
 
 	gAutoLogin = (UINT8)ConfigReadInt("AutoLogin", 0);
-	gAutoPassword = MEM_ALLOC(MAX_PASSWORD);
+	VCCONFIG_ALLOC(gAutoPassword, MAX_PASSWORD);
 	ConfigReadString("AutoPassword", "", gAutoPassword, MAX_PASSWORD);
 
-	gAuthPimMsg = MEM_ALLOC(MAX_MSG);
+	VCCONFIG_ALLOC(gAuthPimMsg, MAX_MSG);
 	gAuthPimRqt = ConfigReadInt("PimRqt", 1);
 	gAuthPim = ConfigReadInt("Pim", 0);
 	ConfigReadString("PimMsg", "Pim:", gAuthPimMsg, MAX_MSG);
 
-	gAuthHashMsg = MEM_ALLOC(MAX_MSG);
+	VCCONFIG_ALLOC(gAuthHashMsg, MAX_MSG);
 	gAuthHashRqt = ConfigReadInt("HashRqt", 1);
 	gAuthHash = ConfigReadInt("Hash", 0);
 
@@ -145,15 +149,15 @@ VCAuthLoadConfig()
 
 	gDcsBootForce = ConfigReadInt("DcsBootForce", 1);                 // Ask password even if no USB marked found. 
 
-	gForcePasswordMsg = MEM_ALLOC(MAX_MSG);
+	VCCONFIG_ALLOC(gForcePasswordMsg, MAX_MSG);
 	ConfigReadString("ForcePasswordMsg", gAuthPasswordMsg, gForcePasswordMsg, MAX_MSG);
 	gForcePasswordType = ConfigReadInt("ForcePasswordType", gAuthPasswordType);
 	gForcePasswordProgress = (UINT8)ConfigReadInt("ForcePasswordProgress", gPasswordProgress);
 
 	gAuthRetry = ConfigReadInt("AuthorizeRetry", 10);
-	gAuthStartMsg = MEM_ALLOC(MAX_MSG);
+	VCCONFIG_ALLOC(gAuthStartMsg, MAX_MSG);
 	ConfigReadString("AuthStartMsg", "Authorizing...\n\r", gAuthStartMsg, MAX_MSG);
-	gAuthErrorMsg = MEM_ALLOC(MAX_MSG);
+	VCCONFIG_ALLOC(gAuthErrorMsg, MAX_MSG);
 	ConfigReadString("AuthErrorMsg", "Authorization failed. Wrong password, PIM or hash.\n\r", gAuthErrorMsg, MAX_MSG);
 
 	gRUD = ConfigReadInt("RUD", 0);
@@ -166,11 +170,11 @@ VCAuthLoadConfig()
 	gSCLocked = ConfigReadInt("SCLocked", 0);
 
 	// Actions for DcsInt
-	gOnExitSuccess = MEM_ALLOC(MAX_MSG);
+	VCCONFIG_ALLOC(gOnExitSuccess, MAX_MSG);
 	ConfigReadString("ActionSuccess", "Exit", gOnExitSuccess, MAX_MSG);
-	gOnExitNotFound = MEM_ALLOC(MAX_MSG);
+	VCCONFIG_ALLOC(gOnExitNotFound, MAX_MSG);
 	ConfigReadString("ActionNotFound", "Exit", gOnExitNotFound, MAX_MSG);
-	gOnExitFailed = MEM_ALLOC(MAX_MSG);
+	VCCONFIG_ALLOC(gOnExitFailed, MAX_MSG);
 	ConfigReadString("ActionFailed", "Exit", gOnExitFailed, MAX_MSG);
 
 	strTemp = MEM_ALLOC(MAX_MSG);
@@ -178,7 +182,7 @@ VCAuthLoadConfig()
 	if (strTemp[0] != 0) {
 		EFI_GUID g;
 		if (AsciiStrToGuid(&g, strTemp)) {
-			gPartitionGuidOS = MEM_ALLOC(sizeof(EFI_GUID));
+			VCCONFIG_ALLOC(gPartitionGuidOS, sizeof(EFI_GUID));
 			if (gPartitionGuidOS != NULL) {
 				memcpy(gPartitionGuidOS, &g, sizeof(g));
 			}

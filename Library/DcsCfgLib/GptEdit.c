@@ -745,3 +745,136 @@ DeListRndLoad()
 	}
 	return res;
 }
+
+//////////////////////////////////////////////////////////////////////////
+// Tables
+//////////////////////////////////////////////////////////////////////////
+
+CONST CHAR16*               DcsTablesFileName = L"DcsTables";
+UINT8*                      gDcsTables = NULL;
+UINTN                       gDcsTablesSize = 0;
+
+BOOLEAN 
+TablesList(
+	IN UINTN maxSize, 
+	IN VOID* tables
+	) {
+	EFI_TABLE_HEADER *mhdr = (EFI_TABLE_HEADER *)tables;
+	if (tables != NULL &&
+		mhdr->Signature == EFITABLE_HEADER_SIGN &&
+		GptHeaderCheckCrc(maxSize, mhdr)) {
+		UINT8* raw = (UINT8*)tables;
+		UINTN  rawSize = mhdr->HeaderSize;
+		UINTN tpos = sizeof(EFI_TABLE_HEADER);
+		while (tpos < rawSize) {
+			EFI_TABLE_HEADER *hdr = (EFI_TABLE_HEADER *)(raw + tpos);
+			CHAR8            asc_sign[sizeof(hdr->Signature) + 1] = { 0 };
+			CopyMem(asc_sign, &hdr->Signature, sizeof(hdr->Signature));
+			asc_sign[sizeof(hdr->Signature)] = 0;
+			OUT_PRINT(L"%a, SZ=%d", asc_sign, hdr->HeaderSize);
+			if (!GptHeaderCheckCrc(rawSize - tpos, hdr)) {
+				ERR_PRINT(L" - wrong crc\n");
+				return FALSE;	// wrong crc
+			}
+			OUT_PRINT(L" - OK\n");
+			tpos += hdr->HeaderSize;
+		}
+		return TRUE;
+	}
+	return FALSE;
+}
+
+EFI_STATUS
+TablesLoad() {
+	EFI_STATUS res = EFI_SUCCESS;
+	if (EFI_ERROR(FileExist(NULL, (CHAR16*)DcsTablesFileName))) {
+		EFI_TABLE_HEADER* mhdr = NULL;
+		UINT32 Crc;
+		gDcsTables = MEM_ALLOC(sizeof(EFI_TABLE_HEADER));
+		gDcsTablesSize = sizeof(EFI_TABLE_HEADER);
+		mhdr = (EFI_TABLE_HEADER*)gDcsTables;
+		mhdr->HeaderSize = sizeof(EFI_TABLE_HEADER);
+		mhdr->Signature = EFITABLE_HEADER_SIGN;
+		mhdr->CRC32 = 0;
+		if (EFI_ERROR(res = gBS->CalculateCrc32((UINT8 *)gDcsTables, mhdr->HeaderSize, &Crc))) {
+			goto err;
+		}
+		mhdr->CRC32 = Crc;
+		OUT_PRINT(L"New tables created %s\n", DcsTablesFileName);
+	}	else {
+		res = FileLoad(NULL, (CHAR16*)DcsTablesFileName, &gDcsTables, &gDcsTablesSize);
+		if (!EFI_ERROR(res)) {
+			res = TablesVerify(gDcsTablesSize, gDcsTables) ? EFI_SUCCESS : EFI_CRC_ERROR;
+		}
+	}
+err:
+	if (EFI_ERROR(res)) {
+		ERR_PRINT(L"Tables load error %r\n", res);
+	}
+	return res;
+}
+
+EFI_STATUS
+TablesNew(
+	IN CONST CHAR16* signStr, 
+	IN CONST CHAR16* dataFileName
+	) {
+	EFI_STATUS res = EFI_SUCCESS;
+	VOID* data;
+	UINTN dataSize;
+	UINT64 sign;
+	EFI_TABLE_HEADER* mhdr;
+
+	if (StrLen(signStr) != 8) {
+		res = EFI_INVALID_PARAMETER;
+		goto err;
+	}
+	sign = SIGNATURE_64(signStr[0], signStr[1], signStr[2], signStr[3], signStr[4], signStr[5], signStr[6], signStr[7]);
+
+	CE(TablesLoad());
+	TablesDelete(gDcsTables, sign);
+	CE(FileLoad(NULL, (CHAR16*)dataFileName, &data, &dataSize));
+	if (!TablesAppend(&gDcsTables, sign, data, dataSize)) {
+		res = EFI_INVALID_PARAMETER;
+		goto err;
+	}
+	mhdr = (EFI_TABLE_HEADER*)gDcsTables;
+	gDcsTablesSize = mhdr->HeaderSize;
+	res = FileSave(NULL, (CHAR16*)DcsTablesFileName, mhdr, mhdr->HeaderSize);
+
+err:
+	if (EFI_ERROR(res)) {
+		ERR_PRINT(L"Tables append error %r\n", res);
+	}
+	return res;
+}
+
+EFI_STATUS
+TablesDel(
+	IN CONST CHAR16* signStr
+	) {
+	EFI_STATUS res = EFI_SUCCESS;
+	UINT64 sign;
+	EFI_TABLE_HEADER* mhdr;
+
+	if (StrLen(signStr) != 8) {
+		res = EFI_INVALID_PARAMETER;
+		goto err;
+	}
+	sign = SIGNATURE_64(signStr[0], signStr[1], signStr[2], signStr[3], signStr[4], signStr[5], signStr[6], signStr[7]);
+
+	CE(TablesLoad());
+	if (!TablesDelete(gDcsTables, sign)) {
+		res = EFI_INVALID_PARAMETER;
+		goto err;
+	}
+	mhdr = (EFI_TABLE_HEADER*)gDcsTables;
+	gDcsTablesSize = mhdr->HeaderSize;
+	res = FileSave(NULL, (CHAR16*)DcsTablesFileName, gDcsTables, gDcsTablesSize);
+
+err:
+	if (EFI_ERROR(res)) {
+		ERR_PRINT(L"Tables delete error %r\n", res);
+	}
+	return res;
+}

@@ -24,6 +24,7 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Library/BaseLib.h>
 #include <Library/DcsCfgLib.h>
 #include <Library/DcsTpmLib.h>
+#include <Library/PasswordLib.h>
 
 #include "common/Tcdefs.h"
 #include "common/Crypto.h"
@@ -67,7 +68,7 @@ typedef struct _BOOT_PARAMS {
 
 UINT32                  gHeaderSaltCrc32 = 0;
 PBOOT_PARAMS            bootParams = NULL;
-//#define EFI_BOOTARGS_REGIONS_TEST ,0x9000000, 0xA000000
+// #define EFI_BOOTARGS_REGIONS_TEST ,0x9000000, 0xA000000
 #define EFI_BOOTARGS_REGIONS_TEST
 UINTN BootArgsRegions[] = { EFI_BOOTARGS_REGIONS_HIGH, EFI_BOOTARGS_REGIONS_LOW EFI_BOOTARGS_REGIONS_TEST };
 
@@ -640,6 +641,15 @@ SecRegionTryDecrypt()
 		}
 		OUT_PRINT(L"%a", gAuthStartMsg);
 		do {
+			// EFI tables?
+			if (TablesVerify(SecRegionSize - SecRegionOffset, SecRegionData + SecRegionOffset)) {
+				EFI_TABLE_HEADER *mhdr = (EFI_TABLE_HEADER *)(SecRegionData + SecRegionOffset);
+				UINTN tblZones = (mhdr->HeaderSize + 1024 * 128 - 1) / (1024 * 128);
+				SecRegionOffset += tblZones * 1024 * 128;
+				vcres = 1;
+				continue;
+			}
+			// Try authorize zone
 			CopyMem(Header, SecRegionData + SecRegionOffset, 512);
 			vcres = ReadVolumeHeader(gAuthBoot, Header, &gAuthPassword, gAuthHash, gAuthPim, gAuthTc, &SecRegionCryptInfo, NULL);
 		   SecRegionOffset += (vcres != 0) ? 1024 * 128 : 0;
@@ -943,6 +953,40 @@ VirtualNotifyEvent(
 }
 
 //////////////////////////////////////////////////////////////////////////
+// Open tables
+//////////////////////////////////////////////////////////////////////////
+UINT8* gOpenTables = NULL;
+
+BOOLEAN
+SecRegionTablesFind(UINT8* secRegion, UINTN secRegionSize, VOID** tables) {
+	UINTN pos = 0;
+	while (pos < SecRegionSize) {
+		if (TablesVerify(secRegionSize - pos, secRegion + pos)) {
+			*tables = secRegion + pos;
+			return TRUE;
+		}
+		pos += 128 * 1024;
+	}
+	return FALSE;
+}
+
+#define DCSPROP_HEADER_SIGN SIGNATURE_64('D','C','S','P','R','O','P','_')
+#define PICTPWD_HEADER_SIGN SIGNATURE_64('P','I','C','T','P','W','D','_')
+
+VOID
+VCAuthLoadConfigUpdated(UINT8* secRegion, UINTN secRegionSize) {
+	if (SecRegionTablesFind(secRegion, secRegionSize, &gOpenTables)) {
+		if (TablesGetData(gOpenTables, DCSPROP_HEADER_SIGN, &gConfigBufferUpdated, &gConfigBufferUpdatedSize)) {
+			// Reload config parameters
+			MEM_FREE(gAuthPasswordMsg);
+			gAuthPasswordMsg = NULL;
+			VCAuthLoadConfig();
+		}
+		TablesGetData(gOpenTables, PICTPWD_HEADER_SIGN, &gPictPwdBmp, &gPictPwdBmpSize);
+	}
+}
+
+//////////////////////////////////////////////////////////////////////////
 // Driver Entry Point
 //////////////////////////////////////////////////////////////////////////
 EFI_STATUS
@@ -966,6 +1010,7 @@ UefiMain(
 			EFI_INPUT_KEY key;
 			EfiPrintDevicePath(SecRegionHandle);
 			OUT_PRINT(L"\n");
+			VCAuthLoadConfigUpdated(SecRegionData, SecRegionSize);
 			key = KeyWait(L"%2d   \r", 2, 0, 0);
 			if (key.UnicodeChar != 0) {
 				GetKey();
@@ -1015,7 +1060,8 @@ UefiMain(
 		if (EFI_ERROR(res)) {
 			return OnExit(gOnExitNotFound, OnExitAuthNotFound, res);
 		}
-		// force password type and message
+		// force password type and message to simulate "press ESC to continue"
+		MEM_FREE(gAuthPasswordMsg);
 		gAuthPasswordType = gForcePasswordType;
 		gAuthPasswordMsg = gForcePasswordMsg;
 		gPasswordProgress = gForcePasswordProgress;

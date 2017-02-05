@@ -112,6 +112,33 @@ BOOLEAN
 IsRegionOverlap(UINT64 start1, UINT64 end1, UINT64 start2, UINT64 end2);
 
 //////////////////////////////////////////////////////////////////////////
+// Tables
+//////////////////////////////////////////////////////////////////////////
+extern CONST CHAR16*               DcsTablesFileName;
+extern UINT8*                      gDcsTables;
+extern UINTN                       gDcsTablesSize;
+
+EFI_STATUS
+TablesDel(
+	IN CONST CHAR16* sign
+	);
+
+EFI_STATUS
+TablesNew(
+	IN CONST CHAR16* sign,
+	IN CONST CHAR16* dataFileName
+	);
+
+EFI_STATUS
+TablesLoad();
+
+BOOLEAN
+TablesList(
+	IN UINTN maxSize,
+	IN VOID* tables
+	);
+
+//////////////////////////////////////////////////////////////////////////
 // Random
 //////////////////////////////////////////////////////////////////////////
 enum RndGeneratorTypes {

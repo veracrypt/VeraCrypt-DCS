@@ -22,6 +22,8 @@ https://opensource.org/licenses/Apache-2.0
 //////////////////////////////////////////////////////////////////////////
 extern char    *gConfigBuffer;
 extern UINTN    gConfigBufferSize;
+extern char *gConfigBufferUpdated;
+extern UINTN	gConfigBufferUpdatedSize;
 
 BOOLEAN ConfigRead(char *configKey, char *configValue, int maxValueSize);
 int ConfigReadInt(char *configKey, int defaultValue);

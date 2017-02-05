@@ -1380,6 +1380,8 @@ SecRigionAdd(
 	EFI_BLOCK_IO_PROTOCOL* bio;
 	UINT8*      regionData;
 	UINTN       regionSize;
+	UINT8*      padding = NULL;
+	UINTN       paddingSize = 0;
 	INTN        deListHdrIdOk;
 	res = FileLoad(NULL, (CHAR16*)DcsDiskEntrysFileName, &regionData, &regionSize);
 	if (EFI_ERROR(res)) {
@@ -1400,8 +1402,17 @@ SecRigionAdd(
 		res = EFI_ACCESS_DENIED;
 		goto error;
 	}
-
+	paddingSize = regionSize & 0x01FF;
+	regionSize -= paddingSize;
 	res = bio->WriteBlocks(bio, bio->Media->MediaId, 62 + regIdx * (128 * 1024 / 512), regionSize, regionData);
+
+	if (!EFI_ERROR(res) && 
+		  paddingSize != 0) {
+		padding = MEM_ALLOC(512);
+		CopyMem(padding, regionData + regionSize, paddingSize);
+		res = bio->WriteBlocks(bio, bio->Media->MediaId, 62 + regIdx * ((128 * 1024 ) / 512) + regionSize / 512, 512, padding);
+		MEM_FREE(padding);
+	}
 
 	if (EFI_ERROR(res)) {
 		ERR_PRINT(L"Write: %r\n", res);

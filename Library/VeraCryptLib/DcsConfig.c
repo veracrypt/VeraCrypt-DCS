@@ -23,6 +23,8 @@ https://opensource.org/licenses/Apache-2.0
 //////////////////////////////////////////////////////////////////////////
 char *gConfigBuffer = NULL;
 UINTN	gConfigBufferSize = 0;
+char *gConfigBufferUpdated = NULL;
+UINTN	gConfigBufferUpdatedSize = 0;
 
 BOOLEAN
 ConfigRead(char *configKey, char *configValue, int maxValueSize)
@@ -35,7 +37,7 @@ ConfigRead(char *configKey, char *configValue, int maxValueSize)
 		}
 	}
 
-	xml = gConfigBuffer;
+	xml = gConfigBufferUpdated != NULL? gConfigBufferUpdated : gConfigBuffer;
 	if (xml != NULL)
 	{
 		xml = XmlFindElementByAttributeValue(xml, "config", "key", configKey);

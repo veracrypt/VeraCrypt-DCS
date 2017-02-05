@@ -174,6 +174,36 @@ GptReadHeader(
 	);
 
 //////////////////////////////////////////////////////////////////////////
+// General EFI tables
+//////////////////////////////////////////////////////////////////////////
+#define EFITABLE_HEADER_SIGN SIGNATURE_64('E','F','I','T','A','B','L','E')
+
+BOOLEAN
+TablesVerify(
+	IN UINTN maxSize,
+	IN VOID* tables);
+
+BOOLEAN
+TablesGetData(
+	IN  VOID*   tables,
+	IN  UINT64  sign,
+	OUT VOID**  data,
+	OUT UINTN*  size);
+
+BOOLEAN
+TablesDelete(
+	IN  VOID*   tables,
+	IN  UINT64  sign
+	);
+
+BOOLEAN
+TablesAppend(
+	IN OUT VOID**  tables,
+	IN     UINT64  sign,
+	IN     VOID*   data,
+	IN     UINTN   size);
+
+//////////////////////////////////////////////////////////////////////////
 // Bluetooth
 //////////////////////////////////////////////////////////////////////////
 extern EFI_HANDLE* gBluetoothIoHandles;

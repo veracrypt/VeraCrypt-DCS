@@ -41,8 +41,8 @@ int		gSCLocked = 0;
 // Picture password
 //////////////////////////////////////////////////////////////////////////
 CONST CHAR16* BmpName = L"Test.bmp";
-VOID*		Bmp = NULL;
-UINTN		BmpSize = 0;
+VOID*		gPictPwdBmp = NULL;
+UINTN		gPictPwdBmpSize = 0;
 BLT_HEADER*	bltPwd = NULL;
 UINTN		   posPictX, posPictY;
 BLT_HEADER*	bltScrn = NULL;
@@ -196,7 +196,7 @@ DrawPwdPicture()
 
 	if (bltPwd != NULL) MEM_FREE(bltPwd);
 
-	res = BmpToBlt(Bmp, BmpSize, &bltPwd);
+	res = BmpToBlt(gPictPwdBmp, gPictPwdBmpSize, &bltPwd);
 	if (EFI_ERROR(res)) {
 		return res;
 	}
@@ -287,9 +287,9 @@ AskPictPwdInt(
 		InitSpeaker();
 	}
 
-	if (Bmp == NULL) {
+	if (gPictPwdBmp == NULL) {
 		if (gPasswordPictureFileName != NULL) {
-			res = FileLoad(NULL, (CHAR16*)gPasswordPictureFileName, &Bmp, &BmpSize);
+			res = FileLoad(NULL, (CHAR16*)gPasswordPictureFileName, &gPictPwdBmp, &gPictPwdBmpSize);
 			if (EFI_ERROR(res)) {
 				ERR_PRINT(L"File load - %r\n", res);
 				return;

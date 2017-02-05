@@ -81,8 +81,22 @@ https://opensource.org/licenses/LGPL-3.0
 #define OPT_TPM_PCRS						L"-tpmpcrs"
 #define OPT_TPM_NVLIST					L"-tpmnvlist"
 #define OPT_TPM_CFG						L"-tpmcfg"
+
+#define OPT_TBL_FILE						L"-tbf"
+#define OPT_TBL_ZERO						L"-tbz"
+#define OPT_TBL_LIST						L"-tbl"
+#define OPT_TBL_NAME						L"-tbn"
+#define OPT_TBL_DELETE					L"-tbd"
+#define OPT_TBL_APPEND					L"-tba"
+
 STATIC CONST SHELL_PARAM_ITEM ParamList[] = {
-   { OPT_DISK_LIST,     TypeValue },
+	{ OPT_TBL_FILE,      TypeValue },
+	{ OPT_TBL_ZERO,      TypeFlag },
+	{ OPT_TBL_LIST,      TypeFlag },
+	{ OPT_TBL_DELETE,    TypeFlag },
+	{ OPT_TBL_NAME,      TypeValue },
+	{ OPT_TBL_APPEND,    TypeValue },
+	{ OPT_DISK_LIST,     TypeValue },
    { OPT_DISK_CHECK,    TypeFlag },
    { OPT_DISK_START,    TypeValue },
    { OPT_DISK_END,      TypeValue },
@@ -226,6 +240,34 @@ DcsCfgMain(
 
 	if (ShellCommandLineGetFlag(Package, OPT_PARTITION_FILE)) {
 		DcsDiskEntrysFileName = ShellCommandLineGetValue(Package, OPT_PARTITION_FILE);
+	}
+
+	if (ShellCommandLineGetFlag(Package, OPT_TBL_FILE)) {
+		DcsTablesFileName = ShellCommandLineGetValue(Package, OPT_TBL_FILE);
+	}
+
+	if (ShellCommandLineGetFlag(Package, OPT_TBL_DELETE) && 
+		ShellCommandLineGetFlag(Package, OPT_TBL_NAME)
+		) {
+		CONST CHAR16* opt1 = NULL;
+		opt1 = ShellCommandLineGetValue(Package, OPT_TBL_NAME);
+		res = TablesDel(opt1);
+	}
+
+	if (ShellCommandLineGetFlag(Package, OPT_TBL_APPEND) &&
+		ShellCommandLineGetFlag(Package, OPT_TBL_NAME)
+		) {
+		CONST CHAR16* opt1 = NULL;
+		CONST CHAR16* opt2 = NULL;
+		opt1 = ShellCommandLineGetValue(Package, OPT_TBL_NAME);
+		opt2 = ShellCommandLineGetValue(Package, OPT_TBL_APPEND);
+		res = TablesNew(opt1, opt2);
+	}
+
+	if (ShellCommandLineGetFlag(Package, OPT_TBL_LIST)) {
+		if (gDcsTables == NULL) TablesLoad();
+		OUT_PRINT(L"Size = %d, Zones=%d\n", gDcsTablesSize, (gDcsTablesSize + 128 * 1024 - 1) / (128 * 1024));
+		TablesList(gDcsTablesSize, gDcsTables);
 	}
 
 	if (ShellCommandLineGetFlag(Package, OPT_AUTH_ASK)) {

@@ -60,14 +60,11 @@ GptHeaderCheckCrcAltSize(
 	Hdr->CRC32 = 0;
 
 	Status = gBS->CalculateCrc32((UINT8 *)Hdr, Size, &Crc);
+	Hdr->CRC32 = OrgCrc;
 	if (EFI_ERROR(Status)) {
 		return FALSE;
 	}
-	//
 	// set results
-	//
-	Hdr->CRC32 = OrgCrc;
-
 	return (BOOLEAN)(OrgCrc == Crc);
 }
 
@@ -212,4 +209,156 @@ GptReadHeader(
 	}
 	*PartHeader = PartHdr;
 	return EFI_SUCCESS;
+}
+
+//////////////////////////////////////////////////////////////////////////
+// General EFI tables
+//////////////////////////////////////////////////////////////////////////
+
+BOOLEAN
+TablesVerify(
+	IN UINTN maxSize,
+	IN VOID* tables)
+{
+	EFI_TABLE_HEADER *mhdr = (EFI_TABLE_HEADER *)tables;
+	if (tables != NULL &&
+		mhdr->Signature == EFITABLE_HEADER_SIGN &&
+		GptHeaderCheckCrc(maxSize, mhdr)) {
+		UINT8* raw = (UINT8*)tables;
+		UINTN  rawSize = mhdr->HeaderSize;
+		UINTN tpos = sizeof(EFI_TABLE_HEADER);
+		while (tpos < rawSize) {
+			EFI_TABLE_HEADER *hdr = (EFI_TABLE_HEADER *)(raw + tpos);
+			if (!GptHeaderCheckCrc(rawSize - tpos, hdr)) {
+				return FALSE;	// wrong crc
+			}
+			tpos += hdr->HeaderSize;
+		}
+		return TRUE;
+	}
+	return FALSE;
+}
+
+BOOLEAN
+TablesGetData(
+	IN  VOID*   tables,
+	IN  UINT64  sign,
+	OUT VOID**  data,
+	OUT UINTN*  size)
+{
+	EFI_TABLE_HEADER *mhdr = (EFI_TABLE_HEADER *)tables;
+	if (tables != NULL &&
+		mhdr->Signature == EFITABLE_HEADER_SIGN &&
+		GptHeaderCheckCrc(0, mhdr)) {
+		UINT8* raw = (UINT8*)tables;
+		UINTN  rawSize = mhdr->HeaderSize;
+		UINTN tpos = sizeof(EFI_TABLE_HEADER);
+		while (tpos < rawSize) {
+			EFI_TABLE_HEADER *hdr = (EFI_TABLE_HEADER *)(raw + tpos);
+			if (GptHeaderCheckCrc(rawSize - tpos, hdr)) {
+				if (hdr->Signature == sign) {
+					*data = raw + tpos + sizeof(EFI_TABLE_HEADER);
+					*size = hdr->HeaderSize - sizeof(EFI_TABLE_HEADER);
+					return TRUE;
+				}
+				tpos += hdr->HeaderSize;
+			}
+			else {
+				return FALSE;
+			}
+		}
+	}
+	return FALSE;
+}
+
+BOOLEAN
+TablesDelete(
+	IN  VOID*   tables,
+	IN  UINT64  sign
+	)
+{
+	EFI_TABLE_HEADER *mhdr = (EFI_TABLE_HEADER *)tables;
+	EFI_TABLE_HEADER *thdr = NULL;
+	UINT8* raw = (UINT8*)tables;
+	UINTN  rawSize = mhdr->HeaderSize;
+	UINTN  tpos = sizeof(EFI_TABLE_HEADER);
+	if (tables != NULL &&
+		mhdr->Signature == EFITABLE_HEADER_SIGN &&
+		GptHeaderCheckCrc(0, mhdr)) {
+		while (tpos < rawSize) {
+			EFI_TABLE_HEADER *hdr = (EFI_TABLE_HEADER *)(raw + tpos);
+			if (GptHeaderCheckCrc(rawSize - tpos, hdr)) {
+				if (hdr->Signature == sign) {
+					thdr = hdr;
+					break;
+				}
+				tpos += hdr->HeaderSize;
+			}	else {
+				return FALSE;
+			}
+		}
+		if (thdr != NULL) {
+			UINT32 Crc;
+			UINTN pos;
+			mhdr->HeaderSize -= thdr->HeaderSize;
+			pos = tpos + thdr->HeaderSize;
+			while (pos < rawSize) {
+				raw[tpos] = raw[pos];
+				++tpos;
+				++pos;
+			}
+			mhdr->CRC32 = 0;
+			if (EFI_ERROR(gBS->CalculateCrc32((UINT8 *)raw, mhdr->HeaderSize, &Crc))) {
+				return FALSE;
+			}
+			mhdr->CRC32 = Crc;
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+BOOLEAN
+TablesAppend(
+	IN OUT VOID**  tables,
+	IN     UINT64  sign,
+	IN     VOID*   data,
+	IN     UINTN   size)
+{
+	EFI_TABLE_HEADER *mhdr = NULL;
+	EFI_TABLE_HEADER *thdr = NULL;
+	UINTN  rawSize = 0;
+	UINT8* raw = (UINT8*)tables;
+	if (tables != NULL &&
+		(mhdr = (EFI_TABLE_HEADER *)*tables) != NULL &&
+		mhdr->Signature == EFITABLE_HEADER_SIGN &&
+		GptHeaderCheckCrc(0, mhdr)) {
+		UINT32 Crc;
+		rawSize = mhdr->HeaderSize;
+		raw = MEM_REALLOC(rawSize, rawSize + sizeof(EFI_TABLE_HEADER) + size, mhdr);
+		if (raw == NULL) {
+			return FALSE;
+		}
+		mhdr = (EFI_TABLE_HEADER *)raw;
+		thdr = (EFI_TABLE_HEADER *)(raw + rawSize);
+		thdr->HeaderSize = (UINT32)(sizeof(EFI_TABLE_HEADER) + size);
+		thdr->Signature = sign;
+		CopyMem(((UINT8 *)thdr) + sizeof(EFI_TABLE_HEADER), data, size);
+
+		thdr->CRC32 = 0;
+		if (EFI_ERROR(gBS->CalculateCrc32((UINT8 *)thdr, thdr->HeaderSize, &Crc))) {
+			return FALSE;
+		}
+		thdr->CRC32 = Crc;
+
+		mhdr->HeaderSize += (UINT32)(size + sizeof(EFI_TABLE_HEADER));
+		mhdr->CRC32 = 0;
+		if (EFI_ERROR(gBS->CalculateCrc32((UINT8 *)raw, mhdr->HeaderSize, &Crc))) {
+			return FALSE;
+		}
+		mhdr->CRC32 = Crc;
+		*tables = raw;
+		return TRUE;
+	}
+	return FALSE;
 }

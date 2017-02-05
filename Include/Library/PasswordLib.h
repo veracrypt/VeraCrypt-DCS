@@ -25,6 +25,8 @@ extern UINTN	gPasswordPictureCharsLen;
 extern UINT8	gPasswordVisible;
 extern UINT8	gPasswordProgress;
 extern int		gPasswordShowMark;
+extern VOID*	gPictPwdBmp;
+extern UINTN	gPictPwdBmpSize;
 
 extern int		gPlatformLocked;
 extern int		gTPMLocked;
@@ -113,5 +115,10 @@ PlatformGetAuthData(
 	OUT UINTN      *len,
 	OUT EFI_HANDLE *secRegionHandle
 	);
+
+//////////////////////////////////////////////////////////////////////////
+// Certificates
+//////////////////////////////////////////////////////////////////////////
+extern CHAR8* gDCS_platform_crt_der;
 
 #endif

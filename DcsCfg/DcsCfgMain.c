@@ -75,6 +75,7 @@ https://opensource.org/licenses/LGPL-3.0
 #define OPT_SECREGION_MARK				L"-srm"
 #define OPT_SECREGION_WIPE				L"-srw"
 #define OPT_SECREGION_ADD				L"-sra"
+#define OPT_SECREGION_DUMP				L"-srdump"
 #define OPT_WIPE							L"-wipe"
 #define OPT_OS_DECRYPT					L"-osdecrypt"
 #define OPT_OS_RESTORE_KEY				L"-osrestorekey"
@@ -88,8 +89,10 @@ https://opensource.org/licenses/LGPL-3.0
 #define OPT_TBL_NAME						L"-tbn"
 #define OPT_TBL_DELETE					L"-tbd"
 #define OPT_TBL_APPEND					L"-tba"
+#define OPT_TBL_DUMP						L"-tbdump"
 
 STATIC CONST SHELL_PARAM_ITEM ParamList[] = {
+	{ OPT_TBL_DUMP,      TypeValue },
 	{ OPT_TBL_FILE,      TypeValue },
 	{ OPT_TBL_ZERO,      TypeFlag },
 	{ OPT_TBL_LIST,      TypeFlag },
@@ -137,6 +140,7 @@ STATIC CONST SHELL_PARAM_ITEM ParamList[] = {
 	{ OPT_SECREGION_MARK,       TypeValue },
 	{ OPT_SECREGION_WIPE,       TypeValue },
 	{ OPT_SECREGION_ADD,        TypeValue },
+	{ OPT_SECREGION_DUMP,       TypeValue },
 	{ OPT_WIPE,                 TypeDoubleValue },
 	{ OPT_OS_DECRYPT,     TypeFlag },
 	{ OPT_OS_RESTORE_KEY, TypeFlag },
@@ -262,6 +266,13 @@ DcsCfgMain(
 		opt1 = ShellCommandLineGetValue(Package, OPT_TBL_NAME);
 		opt2 = ShellCommandLineGetValue(Package, OPT_TBL_APPEND);
 		res = TablesNew(opt1, opt2);
+	}
+
+	if (ShellCommandLineGetFlag(Package, OPT_TBL_DUMP))
+	{
+		CONST CHAR16* opt = NULL;
+		opt = ShellCommandLineGetValue(Package, OPT_TBL_DUMP);
+		res = TablesDump((CHAR16*)opt);
 	}
 
 	if (ShellCommandLineGetFlag(Package, OPT_TBL_LIST)) {
@@ -688,6 +699,17 @@ DcsCfgMain(
 		}
 		else {
 			ERR_PRINT(L"Select disk and GPT file");
+			return EFI_INVALID_PARAMETER;
+		}
+	}
+
+	if (ShellCommandLineGetFlag(Package, OPT_SECREGION_DUMP)) {
+		if (ShellCommandLineGetFlag(Package, OPT_DISK_START)) {
+			CONST CHAR16* opt = NULL;
+			opt = ShellCommandLineGetValue(Package, OPT_SECREGION_DUMP);
+			SecRigionDump(gBIOHandles[BioIndexStart], (CHAR16*)opt);
+		}	else {
+			ERR_PRINT(L"Select disk");
 			return EFI_INVALID_PARAMETER;
 		}
 	}

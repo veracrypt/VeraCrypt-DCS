@@ -14,6 +14,7 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/DevicePathLib.h>
 #include <Library/BaseMemoryLib.h>
+#include <Library/PrintLib.h>
 #include <Uefi/UefiGpt.h>
 #include <Guid/Gpt.h>
 
@@ -807,6 +808,50 @@ TablesLoad() {
 			res = TablesVerify(gDcsTablesSize, gDcsTables) ? EFI_SUCCESS : EFI_CRC_ERROR;
 		}
 	}
+err:
+	if (EFI_ERROR(res)) {
+		ERR_PRINT(L"Tables load error %r\n", res);
+	}
+	return res;
+}
+
+EFI_STATUS
+TablesDump(
+	IN CHAR16 *prefix
+	) {
+	EFI_TABLE_HEADER *mhdr = NULL;
+	EFI_STATUS res = EFI_SUCCESS;
+	CHAR16            name[128];
+
+	if (gDcsTables == NULL) {
+		CE(TablesLoad());
+	}
+
+	mhdr = (EFI_TABLE_HEADER *)gDcsTables;
+	if (gDcsTables != NULL &&
+		mhdr->Signature == EFITABLE_HEADER_SIGN &&
+		GptHeaderCheckCrc(gDcsTablesSize, mhdr)) {
+		UINT8* raw = (UINT8*)gDcsTables;
+		UINTN  rawSize = mhdr->HeaderSize;
+		UINTN tpos = sizeof(EFI_TABLE_HEADER);
+		while (tpos < rawSize) {
+			EFI_TABLE_HEADER *hdr = (EFI_TABLE_HEADER *)(raw + tpos);
+			CHAR8            asc_sign[sizeof(hdr->Signature) + 1] = { 0 };
+			CopyMem(asc_sign, &hdr->Signature, sizeof(hdr->Signature));
+			asc_sign[sizeof(hdr->Signature)] = 0;
+			UnicodeSPrint(name, sizeof(name), L"%s%a", prefix, asc_sign);
+			OUT_PRINT(L"%s, SZ=%d", name, hdr->HeaderSize);
+			if (!GptHeaderCheckCrc(rawSize - tpos, hdr)) {
+				ERR_PRINT(L" - wrong crc\n");
+				return EFI_CRC_ERROR;	// wrong crc
+			}
+			CE(FileSave(NULL, name, raw + tpos + sizeof(EFI_TABLE_HEADER), hdr->HeaderSize - sizeof(EFI_TABLE_HEADER)));
+			OUT_PRINT(L" - saved\n");
+			tpos += hdr->HeaderSize;
+		}
+		return EFI_SUCCESS;
+	}
+
 err:
 	if (EFI_ERROR(res)) {
 		ERR_PRINT(L"Tables load error %r\n", res);

@@ -18,6 +18,7 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Library/DebugLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/BaseMemoryLib.h>
+#include <Library/PrintLib.h>
 #include <Guid/Gpt.h>
 #include <Guid/GlobalVariable.h>
 
@@ -1370,6 +1371,77 @@ error:
 	MEM_FREE(buf);
 	return res;
 }
+
+EFI_STATUS
+SecRigionDump(
+	IN EFI_HANDLE   hBio,
+	IN CHAR16       *prefix
+	)
+{
+	EFI_STATUS              res = EFI_SUCCESS;
+	EFI_BLOCK_IO_PROTOCOL*  bio;
+	DCS_AUTH_DATA_MARK*     adm = NULL;
+	UINT32                  crc;
+	UINT8*                  SecRegionData = NULL;
+	UINTN                   SecRegionSize = 0;
+	UINTN                   SecRegionOffset = 0;
+	UINTN                   saveSize = 0;
+	UINTN                   idx = 0;
+	CHAR16                  name[128];
+
+	adm = (DCS_AUTH_DATA_MARK*)MEM_ALLOC(512);
+	if (adm == NULL) {
+		ERR_PRINT(L"no memory\n");
+		return EFI_BUFFER_TOO_SMALL;
+	}
+
+	bio = EfiGetBlockIO(hBio);
+	if (bio == NULL) {
+		ERR_PRINT(L"No block IO");
+		res = EFI_ACCESS_DENIED;
+		goto err;
+	}
+
+	CE(bio->ReadBlocks(bio, bio->Media->MediaId, 61, 512, adm));
+	CE(gBS->CalculateCrc32(&adm->PlatformCrc, sizeof(*adm) - 4, &crc));
+
+	if (adm->HeaderCrc != crc) {
+		res = EFI_INVALID_PARAMETER;
+	}
+
+	SecRegionSize = adm->AuthDataSize * 128 * 1024;
+	SecRegionData = MEM_ALLOC(SecRegionSize);
+	if (SecRegionData == NULL) {
+		res = EFI_BUFFER_TOO_SMALL;
+		goto err;
+	}
+	CE(bio->ReadBlocks(bio, bio->Media->MediaId, 62, SecRegionSize, SecRegionData));
+
+	do {
+		// EFI tables?
+		if (TablesVerify(SecRegionSize - SecRegionOffset, SecRegionData + SecRegionOffset)) {
+			EFI_TABLE_HEADER *mhdr = (EFI_TABLE_HEADER *)(SecRegionData + SecRegionOffset);
+			UINTN tblZones = (mhdr->HeaderSize + 1024 * 128 - 1) / (1024 * 128);
+			saveSize = tblZones * 1024 * 128;
+		}		else {
+			saveSize = 1024 * 128;
+		}
+		UnicodeSPrint(name, sizeof(name), L"%s%d", prefix, idx);
+		CE(FileSave(NULL, name, SecRegionData + SecRegionOffset, saveSize));
+		OUT_PRINT(L"%s saved\n", name);
+		idx += saveSize / (1024 * 128);
+		SecRegionOffset += saveSize;
+	} while (SecRegionOffset < SecRegionSize);
+
+err:
+	if (EFI_ERROR(res)) {
+		ERR_PRINT(L"%r\n", res);
+	}
+	MEM_FREE(adm);
+	MEM_FREE(SecRegionData);
+	return res;
+}
+
 
 EFI_STATUS
 SecRigionAdd(

@@ -66,6 +66,7 @@ char* gAuthStartMsg = NULL;
 INT32 gRUD = 0;
 
 int gAuthSecRegionSearch = 0;
+int gSecRegionInfoDelay = 0;
 
 CHAR8* gPlatformKeyFile = NULL;
 UINTN gPlatformKeyFileSize = 0;
@@ -146,6 +147,7 @@ VCAuthLoadConfig()
 	gPasswordProgress = (UINT8)ConfigReadInt("AuthorizeProgress", 1); // print "*"
 	gPasswordVisible = (UINT8)ConfigReadInt("AuthorizeVisible", 0);   // show chars
 	gPasswordShowMark = ConfigReadInt("AuthorizeMarkTouch", 1);       // show touch points
+	gPasswordTimeout = (UINT8)ConfigReadInt("PasswordTimeout", 0);   // If no password for <seconds> => <ESC>
 
 	gDcsBootForce = ConfigReadInt("DcsBootForce", 1);                 // Ask password even if no USB marked found. 
 
@@ -165,8 +167,11 @@ VCAuthLoadConfig()
 	gRndDefault = ConfigReadInt("Random", 0);
 
 	gAuthSecRegionSearch = ConfigReadInt("SecRegionSearch", 0);
+	gSecRegionInfoDelay = ConfigReadInt("SecRegionInfoDelay", 0);
+
 	gPlatformLocked = ConfigReadInt("PlatformLocked", 0);
 	gTPMLocked = ConfigReadInt("TPMLocked", 0);
+	gTPMLockedInfoDelay = ConfigReadInt("TPMLockedInfoDelay", 9);
 	gSCLocked = ConfigReadInt("SCLocked", 0);
 
 	// Actions for DcsInt

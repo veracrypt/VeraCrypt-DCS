@@ -31,9 +31,11 @@ UINTN		gPasswordPictureCharsLen = 95;
 UINT8		gPasswordVisible = 0;
 int		gPasswordShowMark = 1;
 UINT8		gPasswordProgress = 1;
+int		gPasswordTimeout = 0;
 
 int		gPlatformLocked = 0;
 int		gTPMLocked = 0;
+int		gTPMLockedInfoDelay = 9;
 int		gSCLocked = 0;
 
 
@@ -281,6 +283,25 @@ AskPictPwdInt(
 	BOOLEAN        beepOn = FALSE;
 	UINTN          pwdAction = PwdActNone;
 	CHAR8          pwdNewChar = 0;
+
+	if (gPasswordTimeout) {
+		UINTN          EventIndex = 0;
+		InputEvents[0] = gST->ConIn->WaitForKey;
+		eventsCount = 2;
+		if (gTouchPointer != NULL) {
+			eventsCount = 3;
+			InputEvents[2] = gTouchPointer->WaitForInput;
+		}
+		gBS->CreateEvent(EVT_TIMER, 0, (EFI_EVENT_NOTIFY)NULL, NULL, &InputEvents[1]);
+		gBS->SetTimer(InputEvents[1], TimerPeriodic, 10000000 * gPasswordTimeout);
+		gBS->WaitForEvent(eventsCount, InputEvents, &EventIndex);
+		gPasswordTimeout = 0;
+		gBS->CloseEvent(InputEvents[1]);
+		if (EventIndex == 1) {
+			*retCode = AskPwdRetCancel;
+			return;
+		}
+	}
 
 	InitConsoleControl();
 	if (gBeepEnabled) {

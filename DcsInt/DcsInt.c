@@ -986,6 +986,32 @@ VCAuthLoadConfigUpdated(UINT8* secRegion, UINTN secRegionSize) {
 	}
 }
 
+VOID
+Pause(
+	IN UINTN      seconds
+	)
+{
+	if (seconds) {
+		EFI_INPUT_KEY key;
+		key = KeyWait(L"%2d   \r", seconds, 0, 0);
+		if (key.UnicodeChar != 0) {
+			GetKey();
+		}
+	}
+}
+
+VOID
+PauseHandleInfo(
+	IN EFI_HANDLE hndle,
+	IN UINTN      seconds)
+{
+	if (seconds) {
+		EfiPrintDevicePath(hndle);
+		Pause(seconds);
+		OUT_PRINT(L"\n");
+	}
+}
+
 //////////////////////////////////////////////////////////////////////////
 // Driver Entry Point
 //////////////////////////////////////////////////////////////////////////
@@ -1007,15 +1033,8 @@ UefiMain(
 	if (gAuthSecRegionSearch) {
 		res = PlatformGetAuthData(&SecRegionData, &SecRegionSize, &SecRegionHandle);
 		if (!EFI_ERROR(res)) {
-			EFI_INPUT_KEY key;
-			EfiPrintDevicePath(SecRegionHandle);
-			OUT_PRINT(L"\n");
 			VCAuthLoadConfigUpdated(SecRegionData, SecRegionSize);
-			key = KeyWait(L"%2d   \r", 2, 0, 0);
-			if (key.UnicodeChar != 0) {
-				GetKey();
-			}
-			OUT_PRINT(L"\n");
+			PauseHandleInfo(SecRegionHandle, gSecRegionInfoDelay);
 		}
 	} else if (gRUD != 0) {
 		// RUD defined
@@ -1028,10 +1047,10 @@ UefiMain(
 			if (!EFI_ERROR(res) && id != NULL) {
 				INT32		rud;
 				rud = GetCrc32((unsigned char*)id, (int)AsciiStrLen(id));
-            OUT_PRINT(L"%d  ? %d\n", gRUD, rud);
 				MEM_FREE(id);
 				if (rud == gRUD) {
 					devFound = TRUE;
+					PauseHandleInfo(SecRegionHandle, gSecRegionInfoDelay);
 					break;
 				}
 			}
@@ -1093,9 +1112,9 @@ UefiMain(
 		if (gConfigBuffer != NULL) {
 			TpmMeasure(gConfigBuffer, gConfigBufferSize); // Measure configuration
 		}
-		if (gTpm->IsConfigured(gTpm) && !gTpm->IsOpen(gTpm)) {
+		if (gTpm->IsConfigured(gTpm) && !gTpm->IsOpen(gTpm) && gTPMLockedInfoDelay) {
 			ERR_PRINT(L"TPM is configured but locked. Probably boot chain is modified!\n");
-			KeyWait(L"%1d\r", 9, 0, 0);
+			Pause(gTPMLockedInfoDelay);
 		}
 	}
 

@@ -1,6 +1,8 @@
 @echo off
 pushd %~dp0
 
+if "%veracrypt_src%"=="" if exist %CD:~0,-28%\VeraCrypt\src set veracrypt_src=%CD:~0,-28%\VeraCrypt\src
+
 call :select_path "%veracrypt_src%" "Select VeraCrypt directory:"
 set veracrypt_src=%select_path_result%
 

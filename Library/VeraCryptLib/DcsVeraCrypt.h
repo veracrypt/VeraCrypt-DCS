@@ -53,9 +53,11 @@ extern char* gAuthErrorMsg;
 extern INT32 gRUD;
 
 extern int gAuthSecRegionSearch;
+extern int gSecRegionInfoDelay;
 
 extern int gPlatformLocked;
 extern int gTPMLocked;
+extern int gTPMLockedInfoDelay;
 extern int gSCLocked;
 
 extern int gAuthPwdCode;

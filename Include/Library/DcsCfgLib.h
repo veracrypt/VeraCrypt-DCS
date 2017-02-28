@@ -14,6 +14,8 @@ of the [to be defined License, Version]. The full text of the license may be fou
 
 #include <Uefi.h>
 
+#include "CommonLib.h"
+
 //////////////////////////////////////////////////////////////////////////
 // DeList and GPT
 //////////////////////////////////////////////////////////////////////////
@@ -206,7 +208,7 @@ typedef struct _DCS_RND_SAVED {
 	UINT8          pad[512 - 8 - 4 - 4 - 4 - 4 - sizeof(EFI_TIME) - sizeof(DCS_RND_STATE)];
 } DCS_RND_SAVED;
 #pragma pack()
-static_assert(sizeof(DCS_RND_SAVED) == 512, "Wrong size DCS_RND_SAVED");
+CSTATIC_ASSERT(sizeof(DCS_RND_SAVED) == 512, Wrong_size_DCS_RND_SAVED);
 
 typedef struct _DCS_RND {
 	DCS_RND_PREPARE    Prepare;

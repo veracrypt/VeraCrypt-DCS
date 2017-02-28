@@ -415,7 +415,7 @@ DeListParseSaved(
 
 	if (GptMainEntrys != NULL && GptAltEntrys != NULL && GptMainHdr != NULL) {
 		if (CompareMem(GptMainEntrys, GptAltEntrys, GptMainHdr->NumberOfPartitionEntries * GptMainHdr->SizeOfPartitionEntry) != 0) {
-			ERR_PRINT(L"Alt GPT != Main GPT\n", );
+			ERR_PRINT(L"Alt GPT != Main GPT\n");
 			return EFI_CRC_ERROR;
 		}
 	}

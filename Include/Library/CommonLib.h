@@ -29,6 +29,10 @@ https://opensource.org/licenses/LGPL-3.0
 extern UINTN gCELine;
 #define CE(ex) gCELine = __LINE__; if(EFI_ERROR(res = ex)) goto err
 
+#ifndef CSTATIC_ASSERT
+#define CSTATIC_ASSERT(b, name) typedef int StaticAssertFailed##name[b ? 1 : -1];
+#endif
+
 //////////////////////////////////////////////////////////////////////////
 // defines
 //////////////////////////////////////////////////////////////////////////

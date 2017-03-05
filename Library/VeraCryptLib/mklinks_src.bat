@@ -3,6 +3,12 @@ pushd %~dp0
 
 if "%veracrypt_src%"=="" if exist %CD:~0,-28%\VeraCrypt\src set veracrypt_src=%CD:~0,-28%\VeraCrypt\src
 
+if not "%1" == "auto" goto :manual
+if not "%2" == "" if exist %2 set veracrypt_src=%2
+set create_links_del_ren=D
+goto :create_links
+
+:manual
 call :select_path "%veracrypt_src%" "Select VeraCrypt directory:"
 set veracrypt_src=%select_path_result%
 

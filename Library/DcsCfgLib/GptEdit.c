@@ -33,7 +33,7 @@ UINT64  gDcsDiskEntryPwdCacheID = DCS_DEP_PWD_CACHE_SIGN;
 
 DCS_DISK_ENTRY_LIST         *DeList = NULL;
 
-UINT8                       *CryptoHeader = NULL;
+UINT8                       *DeCryptoHeader = NULL;
 
 EFI_PARTITION_TABLE_HEADER  *GptMainHdr = NULL;
 EFI_PARTITION_ENTRY         *GptMainEntrys = NULL;
@@ -131,15 +131,15 @@ GptLoadFromDisk(
 		goto error;
 	}
 
-	CryptoHeader = MEM_ALLOC(512);
-	if (CryptoHeader == NULL) {
+	DeCryptoHeader = MEM_ALLOC(512);
+	if (DeCryptoHeader == NULL) {
 		ERR_PRINT(L"Can't alloc CryptoHeader\n");
 		res = EFI_BUFFER_TOO_SMALL;
 		goto error;
 	}
 
 	// Load disk IDs
-	res = BlockIo->ReadBlocks(BlockIo, BlockIo->Media->MediaId, 0, 512, CryptoHeader);
+	res = BlockIo->ReadBlocks(BlockIo, BlockIo->Media->MediaId, 0, 512, DeCryptoHeader);
 	if (EFI_ERROR(res)) {
 		ERR_PRINT(L"Can't MBR \n");
 		goto error;
@@ -147,11 +147,11 @@ GptLoadFromDisk(
 
 	SetMem(&DeDiskId, sizeof(DeDiskId), 0);
 	DeDiskId.Type = DE_DISKID;
-	CopyMem(&DeDiskId.MbrID, &CryptoHeader[0x1b8], sizeof(DiskIdMbr));
+	CopyMem(&DeDiskId.MbrID, &DeCryptoHeader[0x1b8], sizeof(DiskIdMbr));
 	CopyMem(&DeDiskId.GptID, &GptMainHdr->DiskGUID, sizeof(DiskIdGpt));
 
 	// Load crypto header
-	res = BlockIo->ReadBlocks(BlockIo, BlockIo->Media->MediaId, 62, 512, CryptoHeader);
+	res = BlockIo->ReadBlocks(BlockIo, BlockIo->Media->MediaId, 62, 512, DeCryptoHeader);
 	if (EFI_ERROR(res)) {
 		ERR_PRINT(L"Can't read CryptoHeader\n");
 		goto error;
@@ -176,7 +176,7 @@ error:
 	MEM_FREE(GptMainEntrys);
 	MEM_FREE(GptAltHdr);
 	MEM_FREE(GptAltEntrys);
-	MEM_FREE(CryptoHeader);
+	MEM_FREE(DeCryptoHeader);
 	return res;
 }
 
@@ -233,7 +233,7 @@ DeListSaveToFile() {
 	DeList->Count = DE_IDX_TOTAL;
 	Offset = 0;
 
-	DeList_UPDATE_BEGIN(CryptoHeader, DE_Sectors, DE_IDX_CRYPTOHEADER, 512)
+	DeList_UPDATE_BEGIN(DeCryptoHeader, DE_Sectors, DE_IDX_CRYPTOHEADER, 512)
 		DeList->DE[DE_IDX_CRYPTOHEADER].Sectors.Start = 62 * 512;
 	DeList_UPDATE_END
 
@@ -339,7 +339,7 @@ DeListParseSaved(
 	)
 {
 	EFI_STATUS                  res = EFI_SUCCESS;
-	CryptoHeader = DeBuffer;
+	DeCryptoHeader = DeBuffer;
 	DeList = (DCS_DISK_ENTRY_LIST*)(DeBuffer + 512);
 	CopyMem(&DeDiskId, &DeList->DE[DE_IDX_DISKID], sizeof(DeDiskId));
 
@@ -483,7 +483,7 @@ DeListApplySectorsToDisk(
 			res = BlockIo->WriteBlocks(BlockIo, BlockIo->Media->MediaId,
 				DeList->DE[i].Sectors.Start >> 9,
 				(UINTN)DeList->DE[i].Sectors.Length,
-				CryptoHeader + DeList->DE[i].Sectors.Offset);
+				DeCryptoHeader + DeList->DE[i].Sectors.Offset);
 		}
 		if (EFI_ERROR(res)) {
 			ERR_PRINT(L"Write: %r\n", res);
@@ -599,6 +599,9 @@ GptHideParts() {
 	GptSqueze();
 	GptSort();
 	GptSyncMainAlt();
+	if (DeCryptoHeader != NULL) {
+		SetMem(DeCryptoHeader, 512, 0);
+	}
 }
 
 BOOLEAN

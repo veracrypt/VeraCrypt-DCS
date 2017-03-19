@@ -204,11 +204,20 @@ AskAsciiString(
    CHAR8* prompt,
    CHAR8* str,
    UINTN max_len,
-   UINT8 visible)
+   UINT8 visible,
+	CHAR8* defStr)
 {
    UINTN       len = 0;
-   OUT_PRINT(L"%a", prompt);
-   GetLine(&len, NULL, str, max_len, visible);
+	if (defStr == NULL) {
+		OUT_PRINT(L"%a", prompt);
+	} else {
+		OUT_PRINT(L"[%a] %a", defStr, prompt);
+	}
+	GetLine(&len, NULL, str, max_len, visible);
+	if (defStr != NULL && len == 0) {
+		AsciiStrCpyS(str, max_len, defStr);
+		len = AsciiStrLen(str);
+	}
    return (UINT32)len;
 }
 

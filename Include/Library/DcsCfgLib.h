@@ -45,6 +45,7 @@ extern UINT64              gDcsDiskEntryListHeaderID;
 
 extern DCS_DISK_ENTRY_LIST *DeList;
 extern DCS_DEP_EXEC  *DeExecParams;
+extern UINT8 *DeCryptoHeader;
 
 // DcsCfg data
 extern CONST CHAR16*       DcsDiskEntrysFileName;

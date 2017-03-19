@@ -336,7 +336,8 @@ AskAsciiString(
    CHAR8* prompt,
    CHAR8* str,
    UINTN max_len,
-   UINT8 visible);
+   UINT8 visible,
+	CHAR8* defStr);
 
 int
 AskInt(

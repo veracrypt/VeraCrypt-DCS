@@ -39,15 +39,6 @@ https://opensource.org/licenses/LGPL-3.0
 #define OPT_DISK_START					L"-ds"
 #define OPT_DISK_END						L"-de"
 #define OPT_DISK_BOOT					L"-db"
-#define OPT_AUTH_ASK						L"-aa"
-#define OPT_AUTH_CREATE_HEADER		L"-ach"
-#define OPT_RND							L"-rnd"
-#define OPT_RND_GEN						L"-rndgen"
-#define OPT_RND_LOAD						L"-rndload"
-#define OPT_RND_SAVE						L"-rndsave"
-#define OPT_VOLUME_ENCRYPT				L"-vec"
-#define OPT_VOLUME_DECRYPT				L"-vdc"
-#define OPT_VOLUME_CHANGEPWD			L"-vcp"
 #define OPT_USB_LIST						L"-ul"
 #define OPT_TOUCH_LIST					L"-tl"
 #define OPT_TOUCH_TEST					L"-tt"
@@ -57,6 +48,18 @@ https://opensource.org/licenses/LGPL-3.0
 #define OPT_BEEP_LIST					L"-bl"
 #define OPT_BEEP_TEST					L"-bt"
 #define OPT_SETUP							L"-setup"
+
+#define OPT_AUTH_ASK						L"-aa"
+#define OPT_AUTH_CREATE_HEADER		L"-ach"
+#define OPT_VOLUME_ENCRYPT				L"-vec"
+#define OPT_VOLUME_DECRYPT				L"-vdc"
+#define OPT_VOLUME_CHANGEPWD			L"-vcp"
+
+#define OPT_RND							L"-rnd"
+#define OPT_RND_GEN						L"-rndgen"
+#define OPT_RND_LOAD						L"-rndload"
+#define OPT_RND_SAVE						L"-rndsave"
+
 #define OPT_PARTITION_LIST				L"-pl"
 #define OPT_PARTITION_FILE				L"-pf"
 #define OPT_PARTITION_SAVE				L"-ps"
@@ -72,13 +75,16 @@ https://opensource.org/licenses/LGPL-3.0
 #define OPT_PARTITION_RND_SAVE		L"-prndsave"
 #define OPT_PARTITION_EDIT_PWD_CACHE L"-pwdcache"
 #define OPT_KEYFILE_PLATFORM			L"-kp"
+
 #define OPT_SECREGION_MARK				L"-srm"
 #define OPT_SECREGION_WIPE				L"-srw"
 #define OPT_SECREGION_ADD				L"-sra"
 #define OPT_SECREGION_DUMP				L"-srdump"
 #define OPT_WIPE							L"-wipe"
+
 #define OPT_OS_DECRYPT					L"-osdecrypt"
 #define OPT_OS_RESTORE_KEY				L"-osrestorekey"
+
 #define OPT_TPM_PCRS						L"-tpmpcrs"
 #define OPT_TPM_NVLIST					L"-tpmnvlist"
 #define OPT_TPM_CFG						L"-tpmcfg"
@@ -90,6 +96,9 @@ https://opensource.org/licenses/LGPL-3.0
 #define OPT_TBL_DELETE					L"-tbd"
 #define OPT_TBL_APPEND					L"-tba"
 #define OPT_TBL_DUMP						L"-tbdump"
+
+#define OPT_OS_HIDE_PREP					L"-oshideprep"
+
 
 STATIC CONST SHELL_PARAM_ITEM ParamList[] = {
 	{ OPT_TBL_DUMP,      TypeValue },
@@ -144,6 +153,7 @@ STATIC CONST SHELL_PARAM_ITEM ParamList[] = {
 	{ OPT_WIPE,                 TypeDoubleValue },
 	{ OPT_OS_DECRYPT,     TypeFlag },
 	{ OPT_OS_RESTORE_KEY, TypeFlag },
+	{ OPT_OS_HIDE_PREP,   TypeFlag },
 	{ OPT_TPM_PCRS,       TypeDoubleValue },
 	{ OPT_TPM_NVLIST,     TypeFlag },
 	{ OPT_TPM_CFG,        TypeFlag },
@@ -229,6 +239,41 @@ DcsCfgMain(
 
    ParamCount = ShellCommandLineGetCount(Package);
 
+	// Create random
+	if (ShellCommandLineGetFlag(Package, OPT_RND)) {
+		CONST CHAR16* opt = NULL;
+		CHAR16* context = NULL;
+		UINTN rndType;
+		UINTN contextSize = 0;
+		opt = ShellCommandLineGetValue(Package, OPT_RND);
+		rndType = StrDecimalToUintn(opt);
+		context = (CHAR16*)StrStr(opt, L" ");
+		if (context != NULL) {
+			context++;
+			contextSize = StrLen(context) * 2;
+			if (!EFI_ERROR(FileExist(NULL, context))) {
+				FileLoad(NULL, context, &context, &contextSize);
+			}
+		}
+		res = RndInit(rndType, context, contextSize, &gRnd);
+		if (EFI_ERROR(res)) {
+			ERR_PRINT(L"Random: %r\n", res);
+		}
+	}
+
+	// Rescue
+	if (ShellCommandLineGetFlag(Package, OPT_OS_DECRYPT)) {
+		return OSDecrypt();
+	}
+
+	if (ShellCommandLineGetFlag(Package, OPT_OS_RESTORE_KEY)) {
+		return OSRestoreKey();
+	}
+
+	if (ShellCommandLineGetFlag(Package, OPT_OS_HIDE_PREP)) {
+		return OuterInit();
+	}
+
 	// Common parameters
 	if (ShellCommandLineGetFlag(Package, OPT_DISK_START)) {
 		CONST CHAR16* opt = NULL;
@@ -283,15 +328,6 @@ DcsCfgMain(
 
 	if (ShellCommandLineGetFlag(Package, OPT_AUTH_ASK)) {
 		TestAuthAsk();
-	}
-
-	// Rescue
-	if (ShellCommandLineGetFlag(Package, OPT_OS_DECRYPT)) {
-		return OSDecrypt();
-	}
-
-	if (ShellCommandLineGetFlag(Package, OPT_OS_RESTORE_KEY)) {
-		return OSRestoreKey();
 	}
 
 	// Beep
@@ -373,28 +409,7 @@ DcsCfgMain(
 		PrintUsbList();
 	}
 
-	// Create random
-	if (ShellCommandLineGetFlag(Package, OPT_RND)) {
-		CONST CHAR16* opt = NULL;
-		CHAR16* context = NULL;
-		UINTN rndType;
-		UINTN contextSize = 0;
-		opt = ShellCommandLineGetValue(Package, OPT_RND);
-		rndType = StrDecimalToUintn(opt);
-		context = (CHAR16*)StrStr(opt, L" ");
-		if (context != NULL) {
-			context++;
-			contextSize = StrLen(context) * 2;
-			if (!EFI_ERROR(FileExist(NULL, context))) {
-				FileLoad(NULL, context, &context, &contextSize);
-			}
-		}
-		res = RndInit(rndType, context, contextSize, &gRnd);
-		if (EFI_ERROR(res)) {
-			ERR_PRINT(L"Random: %r\n", res);
-		}
-	}
-
+	// Randoms
 	if (ShellCommandLineGetFlag(Package, OPT_RND_LOAD)) {
 		CONST CHAR16* opt = NULL;
 		UINT8 temp[4];

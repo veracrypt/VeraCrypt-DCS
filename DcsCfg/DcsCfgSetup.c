@@ -34,6 +34,6 @@ DcsInteractiveSetup() {
 	InitGraph();
 	gST->ConOut->EnableCursor(gST->ConOut, TRUE);
 	ERR_PRINT(L"\n\rInteractive setup is not implemented! Press enter to continue\n\r");
-	AskAsciiString("\rDCS>", cmd, sizeof(cmd), 1);
+	AskAsciiString("\rDCS>", cmd, sizeof(cmd), 1, NULL);
 	return res;
 }

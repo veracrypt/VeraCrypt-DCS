@@ -42,6 +42,7 @@ https://opensource.org/licenses/LGPL-3.0
 PCRYPTO_INFO gAuthCryptInfo = NULL;
 PCRYPTO_INFO gHeaderCryptInfo = NULL;
 CHAR8 Header[512];
+CHAR8 BackupHeader[512];
 
 EFI_HANDLE              SecRegionHandle = NULL;
 UINT64                  SecRegionSector = 0;
@@ -263,6 +264,29 @@ CreateVolumeHeader(
 
 	vcres = CreateVolumeHeaderInMemory(
 		gAuthBoot, Header,
+		ea,
+		mode,
+		&gAuthPassword,
+		pkcs5,
+		gAuthPim,
+		master_keydata,
+		rci,
+		VolumeSize << 9,
+		hiddenVolumeSize << 9,
+		encSectorStart << 9,
+		(encSectorEnd - encSectorStart + 1) << 9,
+		VERSION_NUM,
+		HeaderFlags,
+		512,
+		FALSE);
+
+	if (vcres != 0) {
+		ERR_PRINT(L"Header error %d\n", vcres);
+		return EFI_CRC_ERROR;
+	}
+	crypto_close(*rci);
+	vcres = CreateVolumeHeaderInMemory(
+		gAuthBoot, BackupHeader,
 		ea,
 		mode,
 		&gAuthPassword,
@@ -1138,6 +1162,7 @@ CreateVolumeHeaderOnDisk(
 	UINT64                  VolumeSize = 0;
 	PCRYPTO_INFO            ci = 0;
 	EFI_LBA                 vhsector;
+	EFI_LBA                 vhsector2;
 	EFI_HANDLE              hDisk = NULL;
 	HARDDRIVE_DEVICE_PATH   hdp;
 	BOOLEAN                 isPart;
@@ -1181,10 +1206,18 @@ CreateVolumeHeaderOnDisk(
 		return EFI_NOT_FOUND;
 	}
 
-	vhsector = AskUINT64("save to sector:", gAuthBoot ? 62 : 0);
+	vhsector  = AskUINT64("primary sector to save:", gAuthBoot ? 62 : 0);
+	vhsector2 = vhsector;
+	if (!gAuthBoot) {
+		vhsector2 = AskUINT64("backup sector to save:", vhsector);
+	}
 	if (AskConfirm("Save [N]?", 1)) {
 		res = bio->WriteBlocks(bio, bio->Media->MediaId, vhsector, 512, Header);
-		ERR_PRINT(L"Write: %r\n", res);
+		ERR_PRINT(L"Write %lld: %r\n", vhsector, res);
+		if (vhsector != vhsector2) {
+			res = bio->WriteBlocks(bio, bio->Media->MediaId, vhsector2, 512, BackupHeader);
+			ERR_PRINT(L"Write %lld: %r\n", vhsector2, res);
+		}
 	}
 
 	if (phDisk != NULL) *phDisk = hDisk;
@@ -1197,6 +1230,295 @@ CreateVolumeHeaderOnDisk(
 	return res;
 }
 
+EFI_STATUS 
+CreateVolumeHeadersInMemory(
+	int ea,
+	int mode,
+	int pkcs5,
+	UINT64 encSectorStart,
+	UINT64 encSectorEnd,
+	UINT64 VolumeSize,
+	UINT64 hiddenVolumeSize,
+	UINT32 HeaderFlags
+) {
+	int8 master_keydata[MASTER_KEYDATA_SIZE];
+	INT32                   vcres;
+	PCRYPTO_INFO            rci = 0;
+	if (!RandgetBytes(master_keydata, MASTER_KEYDATA_SIZE, FALSE)) {
+		ERR_PRINT(L"No randoms\n");
+		return EFI_CRC_ERROR;
+	}
+
+	vcres = CreateVolumeHeaderInMemory(
+		FALSE, Header,
+		ea,
+		mode,
+		&gAuthPassword,
+		pkcs5,
+		gAuthPim,
+		master_keydata,
+		&rci,
+		VolumeSize << 9,
+		hiddenVolumeSize << 9,
+		encSectorStart << 9,
+		(encSectorEnd - encSectorStart + 1) << 9,
+		VERSION_NUM,
+		HeaderFlags,
+		512,
+		FALSE);
+
+	if (vcres != 0) {
+		ERR_PRINT(L"Header error %d\n", vcres);
+		return EFI_CRC_ERROR;
+	}
+	crypto_close(rci);
+
+	vcres = CreateVolumeHeaderInMemory(
+		FALSE, BackupHeader,
+		ea,
+		mode,
+		&gAuthPassword,
+		pkcs5,
+		gAuthPim,
+		master_keydata,
+		&rci,
+		VolumeSize << 9,
+		hiddenVolumeSize << 9,
+		encSectorStart << 9,
+		(encSectorEnd - encSectorStart + 1) << 9,
+		VERSION_NUM,
+		HeaderFlags,
+		512,
+		FALSE);
+
+	if (vcres != 0) {
+		ERR_PRINT(L"Header error %d\n", vcres);
+		return EFI_CRC_ERROR;
+	}
+	crypto_close(rci);
+	return EFI_SUCCESS;
+}
+
+EFI_STATUS 
+PartitionOuterInit(
+	UINTN diskIndex,
+	UINTN outerIndex,
+	UINTN endIndex)
+{
+	INT32                   vcres;
+	int mode = 0;
+	int ea = 0;
+	int pkcs5 = 0;
+	UINT64 encSectorStart;
+	UINT64 encSectorEnd;
+	UINT64 hiddenVolumeSize;
+	UINT64 VolumeSize;
+	int8 master_keydata[MASTER_KEYDATA_SIZE];
+	EFI_BLOCK_IO_PROTOCOL*  bio;
+	EFI_STATUS              res;
+	EFI_LBA                 vhsector;
+	EFI_LBA                 vhsector2;
+
+	if (!RandgetBytes(master_keydata, MASTER_KEYDATA_SIZE, FALSE)) {
+		ERR_PRINT(L"No randoms\n");
+		return EFI_CRC_ERROR;
+	}
+
+	if (CompareGuid(&GptMainEntrys[outerIndex].PartitionTypeGUID, &gEfiPartTypeUnusedGuid) ||
+		CompareGuid(&GptMainEntrys[endIndex].PartitionTypeGUID, &gEfiPartTypeUnusedGuid)
+		) {
+		ERR_PRINT(L"Bad partition indexes %d %d\n", outerIndex, endIndex);
+		return EFI_INVALID_PARAMETER;
+	}
+	if (EfiIsPartition(gBIOHandles[diskIndex])) {
+		ERR_PRINT(L"Select disk (not partition)\n");
+		return EFI_INVALID_PARAMETER;
+	}
+
+	bio = EfiGetBlockIO(gBIOHandles[diskIndex]);
+	if (bio == NULL) {
+		ERR_PRINT(L"No BIO protocol\n");
+		return EFI_NOT_FOUND;
+	}
+
+	// Wipe Outer start, Outer end
+	DeListPrint();
+	BlockRangeWipe(gBIOHandles[diskIndex], GptMainEntrys[outerIndex].StartingLBA, GptMainEntrys[outerIndex].EndingLBA);
+	BlockRangeWipe(gBIOHandles[diskIndex], GptMainEntrys[endIndex].StartingLBA, GptMainEntrys[endIndex].EndingLBA);
+
+	if (AskConfirm("Init outer headers?", 1)) {
+		// init header outer start
+		if (gAuthPasswordMsg == NULL) {
+			VCAuthAsk();
+		}
+
+		ea = AskEA();
+		mode = AskMode(ea);
+		pkcs5 = AskPkcs5();
+
+		encSectorStart = 256;
+		encSectorEnd = GptMainEntrys[endIndex].EndingLBA - GptMainEntrys[outerIndex].StartingLBA - 256;
+		VolumeSize = GptMainEntrys[endIndex].EndingLBA - GptMainEntrys[outerIndex].StartingLBA - 512 + 1;
+		hiddenVolumeSize = 0;
+		res = CreateVolumeHeadersInMemory(
+			ea, mode, pkcs5,
+			encSectorStart, encSectorEnd, VolumeSize, hiddenVolumeSize, 0);
+		vhsector = GptMainEntrys[outerIndex].StartingLBA;
+		vhsector2 = GptMainEntrys[endIndex].EndingLBA - 255;
+		if (EFI_ERROR(res)) {
+			ERR_PRINT(L"Create header: %r\n", res);
+		}
+		EfiPrintDevicePath(gBIOHandles[diskIndex]);
+		OUT_PRINT(L"[%lld, %lld] size %lld to %lld,%lld\n", encSectorStart, encSectorEnd, VolumeSize, vhsector, vhsector2);
+		if (!AskConfirm("Save outer[N]?", 1)) {
+			return EFI_NOT_READY;
+		}
+		res = bio->WriteBlocks(bio, bio->Media->MediaId, vhsector, 512, Header);
+		ERR_PRINT(L"Write %lld: %r\n", vhsector, res);
+		if (vhsector != vhsector2) {
+			res = bio->WriteBlocks(bio, bio->Media->MediaId, vhsector2, 512, BackupHeader);
+			ERR_PRINT(L"Write %lld: %r\n", vhsector2, res);
+		}
+
+		// init header outer end
+		VCAuthAsk();
+		encSectorStart = GptMainEntrys[endIndex].StartingLBA - GptMainEntrys[outerIndex].StartingLBA;
+		encSectorEnd = GptMainEntrys[endIndex].EndingLBA - GptMainEntrys[outerIndex].StartingLBA - 256;
+		VolumeSize = GptMainEntrys[endIndex].EndingLBA - GptMainEntrys[endIndex].StartingLBA - 256 + 1;
+		hiddenVolumeSize = VolumeSize;
+		res = CreateVolumeHeadersInMemory(
+			ea, mode, pkcs5,
+			encSectorStart, encSectorEnd, VolumeSize, hiddenVolumeSize, 0);
+		if (EFI_ERROR(res)) {
+			ERR_PRINT(L"Create header: %r\n", res);
+		}
+		vhsector = GptMainEntrys[outerIndex].StartingLBA + 128;
+		vhsector2 = GptMainEntrys[endIndex].EndingLBA - 127;
+
+		EfiPrintDevicePath(gBIOHandles[diskIndex]);
+		OUT_PRINT(L"[%lld, %lld] size %lld to %lld,%lld\n", encSectorStart, encSectorEnd, VolumeSize, vhsector, vhsector2);
+		if (!AskConfirm("Save outer[N]?", 1)) {
+			return EFI_NOT_READY;
+		}
+		res = bio->WriteBlocks(bio, bio->Media->MediaId, vhsector, 512, Header);
+		ERR_PRINT(L"Write %lld: %r\n", vhsector, res);
+		if (vhsector != vhsector2) {
+			res = bio->WriteBlocks(bio, bio->Media->MediaId, vhsector2, 512, BackupHeader);
+			ERR_PRINT(L"Write %lld: %r\n", vhsector2, res);
+		}
+	}
+
+	if (AskConfirm("Update main encryption header?", 1)) {
+		PCRYPTO_INFO cryptoInfo;
+		PCRYPTO_INFO ci;
+		CHAR8 fname8[256];
+		CHAR16 fname16[256];
+
+		VCAuthAsk();
+		res = TryHeaderDecrypt(DeCryptoHeader, &cryptoInfo, NULL);
+		if (EFI_ERROR(res)) {
+			ERR_PRINT(L"Decrypt: %r\n", res);
+			return res;
+		}
+
+		if (cryptoInfo->EncryptedAreaLength.Value != 0) {
+			ERR_PRINT(L"Encrypted already\n");
+			return EFI_INVALID_PARAMETER;
+		}
+
+		encSectorStart = GptMainEntrys[outerIndex].EndingLBA + 1;
+		encSectorEnd = GptMainEntrys[endIndex].StartingLBA - 1;
+		VolumeSize = encSectorEnd - encSectorStart + 1;
+
+		vcres = CreateVolumeHeaderInMemory(
+			TRUE, Header,
+			cryptoInfo->ea,
+			cryptoInfo->mode,
+			&gAuthPassword,
+			cryptoInfo->pkcs5,
+			gAuthPim,
+			cryptoInfo->master_keydata,
+			&ci,
+			VolumeSize << 9,
+			0,
+			encSectorStart << 9,
+			0,
+			cryptoInfo->RequiredProgramVersion,
+			cryptoInfo->HeaderFlags,
+			cryptoInfo->SectorSize,
+			FALSE);
+
+		if (vcres != 0) {
+			ERR_PRINT(L"header create error(%x)\n", vcres);
+			return EFI_INVALID_PARAMETER;
+		}
+		crypto_close(ci);
+		vhsector = 62;
+		res = bio->WriteBlocks(bio, bio->Media->MediaId, vhsector, 512, Header);
+		ERR_PRINT(L"Write %lld: %r\n", vhsector, res);
+
+		vcres = CreateVolumeHeaderInMemory(
+			TRUE, Header,
+			cryptoInfo->ea,
+			cryptoInfo->mode,
+			&gAuthPassword,
+			cryptoInfo->pkcs5,
+			gAuthPim,
+			cryptoInfo->master_keydata,
+			&ci,
+			VolumeSize << 9,
+			0,
+			encSectorStart << 9,
+			VolumeSize << 9,
+			cryptoInfo->RequiredProgramVersion,
+			cryptoInfo->HeaderFlags,
+			cryptoInfo->SectorSize,
+			FALSE);
+
+		if (vcres != 0) {
+			ERR_PRINT(L"header create error(%x)\n", vcres);
+			return EFI_INVALID_PARAMETER;
+		}
+		crypto_close(ci);
+		MEM_FREE(DeCryptoHeader);
+		DeCryptoHeader = Header;
+		AskAsciiString("Encrypted GPT file name:", fname8, sizeof(fname8), 1, "gpt_enc");
+		AsciiStrToUnicodeStr(fname8, fname16);
+		DcsDiskEntrysFileName = fname16;
+		DeListSaveToFile();
+	}
+
+	if (AskConfirm("Create GPT with one hidden volume?", 1)) {
+		CHAR8 fname8[256];
+		CHAR16 fname16[256];
+		// Save hiding GPT
+		CopyMem(&DcsHidePart, &GptMainEntrys[outerIndex], sizeof(DcsHidePart));
+		DcsHidePart.EndingLBA = GptMainEntrys[endIndex].EndingLBA;
+		GptHideParts();
+		AskAsciiString("Hidden GPT file name:", fname8, sizeof(fname8), 1, "gpt_hidden");
+		AsciiStrToUnicodeStr(fname8, fname16);
+		DcsDiskEntrysFileName = fname16;
+		DeListSaveToFile();
+	}
+
+	return EFI_SUCCESS;
+}
+
+EFI_STATUS
+OuterInit() 
+{
+	UINTN disk;
+	UINTN startOuter;
+	UINTN endOuter;
+	BioSkipPartitions = TRUE;
+	PrintBioList();
+	disk = AskUINTN("Disk:", 0);
+	GptLoadFromDisk(disk);
+	DeListPrint();
+	startOuter = AskUINTN("Start outer:", 0);
+	endOuter = AskUINTN("End outer:", startOuter + 3);
+	return PartitionOuterInit(disk, startOuter, endOuter);
+}
 
 //////////////////////////////////////////////////////////////////////////
 // USB

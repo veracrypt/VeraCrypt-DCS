@@ -135,8 +135,9 @@ extern UINTN             UsbIndex;
 VOID
 PrintUsbList();
 
-VOID
-UsbSelect();
+EFI_STATUS
+UsbScApdu(
+	IN CHAR16* hexString);
 
 //////////////////////////////////////////////////////////////////////////
 // Beep

@@ -2,7 +2,7 @@
 EFI console helpers routines/wrappers
 
 Copyright (c) 2016. Disk Cryptography Services for EFI (DCS), Alex Kolotnikov, Alex Kolotnikov
-Copyright (c) 2016. VeraCrypt, Mounir IDRASSI 
+Copyright (c) 2016. VeraCrypt, Mounir IDRASSI
 
 This program and the accompanying materials are licensed and made available
 under the terms and conditions of the GNU Lesser General Public License, version 3.0 (LGPL-3.0).
@@ -27,15 +27,51 @@ UINTN gCELine = 0;
 
 VOID
 PrintBytes(
-	IN UINT8* Data, 
-	IN UINT32 Size) 
+	IN UINT8* Data,
+	IN UINTN Size)
 {
-	UINT32 i;
+	UINTN i;
 	for (i = 0; i < Size; ++i) {
-		UINT32 val = Data[i];
+		UINTN val = Data[i];
 		OUT_PRINT(L"%02X", val);
 	}
 }
+
+/*
+#define DUMP_MAX_LINE_LEN 1024
+typedef struct _DUMP_STATE {
+	CHAR8    line[DUMP_MAX_LINE_LEN];
+
+} DUMP_STATE;
+
+VOID
+DumpBytes(
+	IN UINT8* Data,
+	IN UINT32 Size)
+{
+	UINT32 i;
+	CHAR8 text[17];
+	UINTN addr = 0;
+	for (i = 0; i < Size; ++i) {
+		if ((addr & 0x0F) == 0) {
+			SetMem(text, sizeof(text) - 1, ' ');
+			text[16] = 0;
+			OUT_PRINT(L"%08X: ", addr);
+		}
+		UINT32 val = Data[i];
+		OUT_PRINT(L"%02X ", val);
+		if (val > 31 && val < 127) {
+			text[i & 0x0F] = (CHAR8)(val & 0x0FF);
+		}
+		addr++;
+		if ((addr & 0x0F) == 0) {
+			OUT_PRINT(L"|%a|", text);
+		}
+	}
+	if (addr & 0x0F) != 0) {
+	}
+}
+*/
 
 //////////////////////////////////////////////////////////////////////////
 // Input
@@ -350,6 +386,86 @@ AsciiStrToGuid(
 	guid->Data2 = b[4] << 8 | b[5];
 	guid->Data3 = b[6] << 8 | b[7];
 	CopyMem(&guid->Data4, &b[8], 8);
+	return res;
+}
+
+BOOLEAN
+AsciiHexToBytes(
+	OUT UINT8  *b,
+	IN  UINTN  *bytesLen,
+	IN  CHAR8  *str
+	)
+{
+	UINT8 low = 0;
+	UINT8 high = 0;
+	BOOLEAN res = TRUE;
+	UINTN cnt = 0;
+	UINTN len = 0;
+	CHAR8  *pos = str;
+	if (b == NULL || str == NULL || bytesLen == NULL) return FALSE;
+	if (*bytesLen == 0) return TRUE;
+	len = AsciiStrLen(str);
+	if (len == 0) return TRUE;
+	if (len > 2 && str[0] == '0' && str[1] == 'x') {
+		pos += 2;
+	}
+	if ((len & 1) == 0) {
+		res = AsciiHexToDigit(&high, pos++);
+	}
+	res = res && AsciiHexToDigit(&low, pos++);
+	*b = low | high << 4;
+	b++;
+	cnt++;
+	while (res && (cnt < *bytesLen) && (*pos != 0)) {
+		res = AsciiHexToDigit(&high, pos++);
+		res = res && AsciiHexToDigit(&low, pos++);
+		*b = low | high << 4;
+		b++;
+		cnt++;
+	}
+	*bytesLen = cnt;
+	return res;
+}
+
+BOOLEAN
+StrHexToBytes(
+	OUT UINT8  *b,
+	IN  UINTN  *bytesLen,
+	IN  CHAR16  *str
+	)
+{
+	UINT8 low = 0;
+	UINT8 high = 0;
+	BOOLEAN res = TRUE;
+	UINTN cnt = 0;
+	UINTN len = 0;
+	CHAR16  *pos = str;
+	if (b == NULL || str == NULL || bytesLen == NULL) return FALSE;
+	if (*bytesLen == 0) return TRUE;
+	len = StrLen(str);
+	if (len == 0) return TRUE;
+	if (len > 2 && str[0] == '0' && str[1] == 'x') {
+		pos += 2;
+	}
+	if ((len & 1) == 0) {
+		res = AsciiHexToDigit(&high, (CHAR8*)pos);
+		pos++;
+	}
+	res = res && AsciiHexToDigit(&low, (CHAR8*)pos);
+	pos++;
+	*b = low | high << 4;
+	b++;
+	cnt++;
+	while (res && (cnt < *bytesLen) && (*pos != 0)) {
+		res = AsciiHexToDigit(&high, (CHAR8*)pos);
+		pos++;
+		res = res && AsciiHexToDigit(&low, (CHAR8*)pos);
+		pos++;
+		*b = low | high << 4;
+		b++;
+		cnt++;
+	}
+	*bytesLen = cnt;
 	return res;
 }
 

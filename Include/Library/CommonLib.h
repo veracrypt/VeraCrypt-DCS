@@ -262,6 +262,39 @@ UsbGetId(
 	OUT   CHAR8**			id
 	);
 
+#define PC_to_RDR_XfrBlock_Message 0x6F
+
+#pragma pack(1)
+typedef struct _CCID_HEADER_OUT {
+	UINT8    bMessageType;     // Type of the message
+	UINT32   dwLength;         // Length of data
+	UINT8    bSlot;            // 
+	UINT8    bSeq;             // 
+	UINT8    bReserved;        // 
+	UINT16   wLevelParameter;  // 0000h Short APDU level 
+} CCID_HEADER_OUT;
+
+typedef struct _CCID_HEADER_IN {
+	UINT8    bMessageType;     // Type of the message
+	UINT32   dwLength;         // Length of data
+	UINT8    bSlot;            // 
+	UINT8    bSeq;             // 
+	UINT8    bStatus;          // 
+	UINT8    bError;           // 
+	UINT8    bChainParameter;
+} CCID_HEADER_IN;
+#pragma pack()
+
+EFI_STATUS
+UsbScTransmit(
+	IN    EFI_USB_IO_PROTOCOL    *UsbIO,
+	IN    UINT8*                 cmd,
+	IN    UINTN                  cmdLen,
+	OUT   UINT8*                 resp,
+	OUT   UINTN*                 respLen,
+	OUT   UINT16*                statusSc
+	);
+
 //////////////////////////////////////////////////////////////////////////
 // Touch
 //////////////////////////////////////////////////////////////////////////
@@ -292,7 +325,7 @@ TouchGetIO(
 VOID
 PrintBytes(
 	IN UINT8* Data,
-	IN UINT32 Size);
+	IN UINTN Size);
 
 EFI_STATUS
 ConsoleGetOutput(
@@ -381,6 +414,20 @@ BOOLEAN
 AsciiStrToGuid(
 	OUT EFI_GUID  *guid, 
 	IN  CHAR8     *str
+	);
+
+BOOLEAN
+AsciiHexToBytes(
+	OUT UINT8  *b,
+	IN  UINTN  *bytesLen,
+	IN  CHAR8  *str
+	);
+
+BOOLEAN
+StrHexToBytes(
+	OUT UINT8  *b,
+	IN  UINTN  *bytesLen,
+	IN  CHAR16  *str
 	);
 
 //////////////////////////////////////////////////////////////////////////

@@ -1552,6 +1552,28 @@ PrintUsbList() {
 	UsbIoPrintDevicePaths(L"%HUSB IO handles%N\n");
 }
 
+EFI_STATUS
+UsbScApdu(
+	IN CHAR16* hexString) 
+{
+	UINT8     cmd[256];
+	UINTN     cmdLen = sizeof(cmd) - sizeof(CCID_HEADER_OUT);
+	UINT8     resp[256];
+	UINTN     respLen = sizeof(resp);
+	UINT16    statusSc = 0;
+	EFI_USB_IO_PROTOCOL *UsbIo =NULL;
+	EFI_STATUS res;
+	CE(InitUsb());
+	CE(UsbGetIO(gUSBHandles[UsbIndex], &UsbIo));
+	StrHexToBytes(cmd + sizeof(CCID_HEADER_OUT), &cmdLen, hexString);
+	CE(UsbScTransmit(UsbIo, cmd, cmdLen + sizeof(CCID_HEADER_OUT), resp, &respLen, &statusSc));
+	PrintBytes(resp, respLen);
+	return res;
+err:
+	ERR_PRINT(L"Error(%d) %r\n", gCELine, res);
+	return res;
+}
+
 
 //////////////////////////////////////////////////////////////////////////
 // Set DcsInt parameters

@@ -40,6 +40,8 @@ https://opensource.org/licenses/LGPL-3.0
 #define OPT_DISK_END						L"-de"
 #define OPT_DISK_BOOT					L"-db"
 #define OPT_USB_LIST						L"-ul"
+#define OPT_USB_SELECT					L"-us"
+#define OPT_SC_APDU						L"-scapdu"
 #define OPT_TOUCH_LIST					L"-tl"
 #define OPT_TOUCH_TEST					L"-tt"
 #define OPT_GRAPH_LIST					L"-gl"
@@ -123,6 +125,8 @@ STATIC CONST SHELL_PARAM_ITEM ParamList[] = {
    { OPT_VOLUME_DECRYPT,TypeValue },
 	{ OPT_VOLUME_CHANGEPWD,TypeValue },
 	{ OPT_USB_LIST,      TypeFlag },
+	{ OPT_USB_SELECT,    TypeValue },
+	{ OPT_SC_APDU,       TypeValue },
 	{ OPT_TOUCH_LIST,    TypeFlag },
 	{ OPT_TOUCH_TEST,    TypeValue },
 	{ OPT_GRAPH_LIST,    TypeFlag },
@@ -407,6 +411,18 @@ DcsCfgMain(
 	// USB
 	if (ShellCommandLineGetFlag(Package, OPT_USB_LIST)) {
 		PrintUsbList();
+	}
+
+	if (ShellCommandLineGetFlag(Package, OPT_USB_SELECT)) {
+		CHAR16 * opt;
+		opt = (CHAR16*)ShellCommandLineGetValue(Package, OPT_USB_SELECT);
+		UsbIndex = StrDecimalToUintn(opt);
+	}
+
+	if (ShellCommandLineGetFlag(Package, OPT_SC_APDU)) {
+		CHAR16 * opt;
+		opt = (CHAR16*)ShellCommandLineGetValue(Package, OPT_SC_APDU);
+		UsbScApdu(opt);
 	}
 
 	// Randoms

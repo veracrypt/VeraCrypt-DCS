@@ -1110,7 +1110,7 @@ UefiMain(
 	res = GetTpm(); // Try to get TPM
 	if (!EFI_ERROR(res)) {
 		if (gConfigBuffer != NULL) {
-			TpmMeasure(gConfigBuffer, gConfigBufferSize); // Measure configuration
+			gTpm->Measure(gTpm, DCS_TPM_PCR_LOCK, gConfigBufferSize, gConfigBuffer); // Measure configuration
 		}
 		if (gTpm->IsConfigured(gTpm) && !gTpm->IsOpen(gTpm) && gTPMLockedInfoDelay) {
 			ERR_PRINT(L"TPM is configured but locked. Probably boot chain is modified!\n");

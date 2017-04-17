@@ -27,6 +27,7 @@
 
 [Sources.common]
   Tpm12.c
+  Tpm20.c
 
 [Packages]
   MdePkg/MdePkg.dec
@@ -39,10 +40,13 @@
   UefiLib
   PrintLib
   Tpm12DeviceLib
+  Tpm2DeviceLib
+  Tpm2CommandLib
   BaseCryptLib
 
 [Protocols]
   gEfiTcgProtocolGuid
+  gEfiTcg2ProtocolGuid
 
 # [Guids]
 

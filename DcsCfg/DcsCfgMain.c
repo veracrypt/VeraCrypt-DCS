@@ -29,6 +29,7 @@ https://opensource.org/licenses/LGPL-3.0
 #include "common/Tcdefs.h"
 #include "crypto/cpu.h"
 #include "Library/DcsCfgLib.h"
+#include "../Include/Library/DcsTpmLib.h"
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -368,7 +369,14 @@ DcsCfgMain(
 			opt2++;
 		}
 		ePcr = (UINT32)StrDecimalToUintn(opt2);
-		Tpm12ListPcrs(sPcr, ePcr);
+		res = GetTpm();
+		if (!EFI_ERROR(res)) {
+			if (gTpm->TpmVersion == 0x102) {
+				Tpm12ListPcrs(sPcr, ePcr);
+			}	else {
+				Tpm2ListPcrs(sPcr, ePcr);
+			}
+		}
 	}
 
 	if (ShellCommandLineGetFlag(Package, OPT_TPM_NVLIST)) {
@@ -376,7 +384,7 @@ DcsCfgMain(
 	}
 
 	if (ShellCommandLineGetFlag(Package, OPT_TPM_CFG)) {
-		Tpm12DcsConfigure();
+		TpmDcsConfigure();
 	}
 
 	// Graph

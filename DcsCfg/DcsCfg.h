@@ -185,6 +185,13 @@ EFI_STATUS
 Tpm12NvList();
 
 EFI_STATUS
-Tpm12DcsConfigure();
+TpmDcsConfigure();
+
+EFI_STATUS
+Tpm2ListPcrs(
+	UINT32 sPcr,
+	UINT32 ePcr
+	);
+
 
 #endif // DcsCfg_h__

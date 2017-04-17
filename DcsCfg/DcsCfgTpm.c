@@ -71,7 +71,7 @@ Tpm12NvList(
 }
 
 EFI_STATUS
-Tpm12DcsConfigure(
+TpmDcsConfigure(
 	) {
 	EFI_STATUS res;
 	Password pwd;
@@ -86,3 +86,21 @@ err:
 	ERR_PRINT(L"%r, line %d", res, gCELine);
 	return res;
 }
+
+//////////////////////////////////////////////////////////////////////////
+// TPM 2.0
+//////////////////////////////////////////////////////////////////////////
+EFI_STATUS
+Tpm2ListPcrs(
+	UINT32 sPcr,
+	UINT32 ePcr
+	) {
+	EFI_STATUS res;
+	res = InitTpm20();
+	if (EFI_ERROR(res)) {
+		ERR_PRINT(L"%r\n", res);
+		return res;
+	}
+	return DcsTpm2DumpPcrs(sPcr, ePcr);
+}
+

@@ -410,7 +410,7 @@ RangeCrypt(
 	IN UINT64                 headerSector
 	)
 {
-	EFI_STATUS              res = 0;
+	EFI_STATUS              res = EFI_SUCCESS;
 	EFI_BLOCK_IO_PROTOCOL  *io;
 	UINT8*                  buf;
 	UINT64                  remains;
@@ -1306,18 +1306,19 @@ PartitionOuterInit(
 	UINTN endIndex)
 {
 	INT32                   vcres;
-	int mode = 0;
-	int ea = 0;
-	int pkcs5 = 0;
-	UINT64 encSectorStart;
-	UINT64 encSectorEnd;
-	UINT64 hiddenVolumeSize;
-	UINT64 VolumeSize;
-	int8 master_keydata[MASTER_KEYDATA_SIZE];
+	int                     mode = 0;
+	int                     ea = 0;
+	int                     pkcs5 = 0;
+	UINT64                  encSectorStart;
+	UINT64                  encSectorEnd;
+	UINT64                  hiddenVolumeSize;
+	UINT64                  VolumeSize;
+	int8                    master_keydata[MASTER_KEYDATA_SIZE];
 	EFI_BLOCK_IO_PROTOCOL*  bio;
 	EFI_STATUS              res;
 	EFI_LBA                 vhsector;
 	EFI_LBA                 vhsector2;
+	UINT64                  savePadding = 256;
 
 	if (!RandgetBytes(master_keydata, MASTER_KEYDATA_SIZE, FALSE)) {
 		ERR_PRINT(L"No randoms\n");
@@ -1383,8 +1384,8 @@ PartitionOuterInit(
 		// init header outer end
 		VCAuthAsk();
 		encSectorStart = GptMainEntrys[endIndex].StartingLBA - GptMainEntrys[outerIndex].StartingLBA;
-		encSectorEnd = GptMainEntrys[endIndex].EndingLBA - GptMainEntrys[outerIndex].StartingLBA - 256;
-		VolumeSize = GptMainEntrys[endIndex].EndingLBA - GptMainEntrys[endIndex].StartingLBA - 256 + 1;
+		encSectorEnd = GptMainEntrys[endIndex].EndingLBA - GptMainEntrys[outerIndex].StartingLBA - 256 - savePadding;
+		VolumeSize = GptMainEntrys[endIndex].EndingLBA - GptMainEntrys[endIndex].StartingLBA - 256 + 1 - savePadding;
 		hiddenVolumeSize = VolumeSize;
 		res = CreateVolumeHeadersInMemory(
 			ea, mode, pkcs5,

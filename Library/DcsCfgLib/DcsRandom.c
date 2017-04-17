@@ -402,8 +402,8 @@ RndTpmPrepare(
 {
 	UINT64 rndTmp;
 	UINT32 sz = sizeof(rndTmp);
-	if (rnd != NULL && rnd->Type == RndTypeTpm) {
-		return Tpm12GetRandom(&sz, (UINT8*)&rndTmp);
+	if (rnd != NULL && rnd->Type == RndTypeTpm && !EFI_ERROR(GetTpm())) {
+		return gTpm->GetRandom(gTpm, sz, (UINT8*)&rndTmp);
 	}
 	return EFI_NOT_READY;
 }
@@ -414,9 +414,8 @@ RndTpmGetBytes(
 	OUT UINT8   *buf,
 	IN  UINTN    len)
 {
-	UINT32 sz = (UINT32)len;
-	if (rnd != NULL && rnd->Type == RndTypeTpm) {
-		return Tpm12GetRandom(&sz, buf);
+	if (rnd != NULL && rnd->Type == RndTypeTpm && !EFI_ERROR(GetTpm())) {
+		return gTpm->GetRandom(gTpm, (UINT32)len, buf);
 	}
 	return EFI_NOT_READY;
 }

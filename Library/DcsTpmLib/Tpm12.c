@@ -66,7 +66,10 @@ Sha1Hash(
 	if (ctx == NULL) return EFI_BUFFER_TOO_SMALL;
 	Sha1Init(ctx);
 	Sha1Update(ctx, data, dataSize);
-	if (!Sha1Final(ctx, hash)) return EFI_DEVICE_ERROR;
+	if (!Sha1Final(ctx, hash)) {
+		MEM_FREE(ctx);
+		return EFI_DEVICE_ERROR;
+	}
 	return EFI_SUCCESS;
 }
 
@@ -1104,9 +1107,6 @@ Tpm12GetRandom(
 //////////////////////////////////////////////////////////////////////////
 // Protocol
 //////////////////////////////////////////////////////////////////////////
-#define DCS_TPM_NV_INDEX 0x0DC5B
-#define DCS_TPM_NV_SIZE   128
-#define DCS_TPM_PCR_LOCK  8
 
 typedef struct _Password Password;
 
@@ -1172,7 +1172,6 @@ DcsTpm12IsConfigured(
 	return TRUE;
 }
 
-#define TPM_OWNER_PWD_MAX 64
 VOID
 AskTpmOwnerPwd(
 	OUT CHAR16*  ownerPass
@@ -1250,15 +1249,15 @@ ActionTpm12PrintPcrs(
 	return res;
 }
 
-PMENU_ITEM          gTpmMenu = NULL;
-BOOLEAN             gTpmMenuContinue = TRUE;
+PMENU_ITEM          mTpm12Menu = NULL;
+BOOLEAN             mTpm12MenuContinue = TRUE;
 
 EFI_STATUS
-ActionTpmExit(
+ActionTpm12Exit(
 	IN  VOID *ctx
 	)
 {
-	gTpmMenuContinue = FALSE;
+	mTpm12MenuContinue = FALSE;
 	return EFI_SUCCESS;
 }
 
@@ -1270,10 +1269,10 @@ DcsTpm12Configure(
 	PMENU_ITEM          item = NULL;
 	EFI_STATUS          res;
 	item = DcsMenuAppend(item, L"Update TPM secret", 'u', ActionTpm12Update, NULL);
-	gTpmMenu = item;
+	mTpm12Menu = item;
 	item = DcsMenuAppend(item, L"Delete TPM secret", 'd', ActionTpm12Clean, NULL);
 	item = DcsMenuAppend(item, L"Print PCRs", 'p', ActionTpm12PrintPcrs, NULL);
-	item = DcsMenuAppend(item, L"Exit", 'e', ActionTpmExit, NULL);
+	item = DcsMenuAppend(item, L"Exit", 'e', ActionTpm12Exit, NULL);
 	do {
 		EFI_INPUT_KEY key;
 		OUT_PRINT(L"TPM ");
@@ -1290,11 +1289,11 @@ DcsTpm12Configure(
 			ERR_PRINT(L"not configured");
 		}
 		OUT_PRINT(L"\n");
-		DcsMenuPrint(gTpmMenu);
+		DcsMenuPrint(mTpm12Menu);
 		item = NULL;
 		key.UnicodeChar = 0;
 		while (item == NULL) {
-			item = gTpmMenu;
+			item = mTpm12Menu;
 			key = GetKey();
 			while (item != NULL) {
 				if (item->Select == key.UnicodeChar) break;
@@ -1306,39 +1305,85 @@ DcsTpm12Configure(
 		if (EFI_ERROR(res)) {
 			ERR_PRINT(L"%r(%x),line %d\n", res, Tpm12RespCode(gTpm12Io), gCELine);
 		}
-	} while (gTpmMenuContinue);
+	} while (mTpm12MenuContinue);
 	return EFI_SUCCESS;
 }
 
+EFI_STATUS
+DcsTpm12GetRandom(
+	IN   DCS_TPM_PROTOCOL*  tpm,
+	IN   UINT32             DataSize,
+	OUT  UINT8              *Data
+	)
+{
+	UINT32             remains = DataSize;
+	UINT32             gotBytes = 0;
+	UINT8              *rnd = Data;
+	EFI_STATUS         res = EFI_SUCCESS;
+	while (remains > 0)
+	{
+		gotBytes = remains;
+		res = Tpm12GetRandom(&gotBytes, rnd);
+		if (EFI_ERROR(res)) return res;
+		rnd += gotBytes;
+		remains -= gotBytes;
+	}
+	return res;
+}
+
+EFI_STATUS
+DcsTpm12Measure(
+	DCS_TPM_PROTOCOL* tpm,
+	IN UINTN          index,
+	IN UINTN          dataSz,
+	IN VOID*          data
+	) 
+{
+	EFI_STATUS res;
+	TPM_DIGEST hash;
+	if (index > 0x10000) {
+		index = DCS_TPM_PCR_LOCK;
+	}
+	CE(Sha1Hash(data, dataSz, (UINT8*)&hash));
+	CE(Tpm12PcrExtend((UINT32)index, sizeof(hash), &hash));
+
+err:
+	return res;
+}
+
 DCS_TPM_PROTOCOL* gTpm = (DCS_TPM_PROTOCOL*)NULL;
+
+VOID
+DcsInitTpm12(
+	IN OUT DCS_TPM_PROTOCOL* Tpm)
+{
+	Tpm->TpmVersion = 0x102;
+	Tpm->IsConfigured = DcsTpm12IsConfigured;
+	Tpm->IsOpen = DcsTpm12IsOpen;
+	Tpm->Configure = DcsTpm12Configure;
+	Tpm->Apply = DcsTpm12Apply;
+	Tpm->Lock = DcsTpm12Lock;
+	Tpm->Measure = DcsTpm12Measure;
+	Tpm->GetRandom = DcsTpm12GetRandom;
+}
 
 EFI_STATUS
 GetTpm() {
 	EFI_STATUS res;
 	res = InitTpm12();
-	if (EFI_ERROR(res)) {
-		return res;
+	if (!EFI_ERROR(res)) {
+		gTpm = (DCS_TPM_PROTOCOL*)MEM_ALLOC(sizeof(DCS_TPM_PROTOCOL));
+		if (gTpm == NULL) return EFI_BUFFER_TOO_SMALL;
+		DcsInitTpm12(gTpm);
+		return EFI_SUCCESS;
 	}
-	gTpm = (DCS_TPM_PROTOCOL*)MEM_ALLOC(sizeof(DCS_TPM_PROTOCOL));
-	if (gTpm == NULL) return EFI_BUFFER_TOO_SMALL;
-	gTpm->IsConfigured = DcsTpm12IsConfigured;
-	gTpm->IsOpen       = DcsTpm12IsOpen;
-	gTpm->Configure =    DcsTpm12Configure;
-	gTpm->Apply        = DcsTpm12Apply;
-	gTpm->Lock         = DcsTpm12Lock;
-	return EFI_SUCCESS;
-}
-
-EFI_STATUS 
-TpmMeasure(
-	IN VOID* data,
-	IN UINTN dataSz
-	) {
-	EFI_STATUS res;
-	TPM_DIGEST hash;
-	CE(Sha1Hash(data, dataSz, (UINT8*)&hash));
-	CE(Tpm12PcrExtend(DCS_TPM_PCR_LOCK, sizeof(hash), &hash));
-
-err:
+	res = InitTpm20();
+	if (!EFI_ERROR(res)) {
+		gTpm = (DCS_TPM_PROTOCOL*)MEM_ALLOC(sizeof(DCS_TPM_PROTOCOL));
+		if (gTpm == NULL) return EFI_BUFFER_TOO_SMALL;
+		DcsInitTpm20(gTpm);
+		return EFI_SUCCESS;
+	}
 	return res;
 }
+

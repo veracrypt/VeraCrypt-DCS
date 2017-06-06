@@ -663,6 +663,7 @@ RangeCrypt(
 
 error:
 	OUT_PRINT(L"\n");
+	MEM_BURN(buf, CRYPT_BUF_SECTORS << 9);
 	MEM_FREE(buf);
 	return res;
 }

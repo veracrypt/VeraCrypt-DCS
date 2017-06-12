@@ -165,6 +165,10 @@ DcsBootMain(
 	searchOnESP = CompareGuid(gEfiExecPartGuid, &ImagePartGuid) &&
 		EFI_ERROR(FileExist(NULL, gEfiExecCmd));
 
+	// Clear DcsExecPartGuid before execute OS to avoid problem in VirtualBox with reboot.
+	EfiSetVar(L"DcsExecPartGuid", NULL, NULL, 0, EFI_VARIABLE_BOOTSERVICE_ACCESS);
+	EfiSetVar(L"DcsExecCmd", NULL, NULL, 0, EFI_VARIABLE_BOOTSERVICE_ACCESS);
+
 	// Find new start partition
    ConnectAllEfi();
 	InitBio();

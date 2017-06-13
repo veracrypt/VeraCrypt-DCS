@@ -657,7 +657,7 @@ AskPictPwdInt(
 			DrawTouchZone(&TZN_SC);
 		}
 
-		if (curPrevX != curX || curPrevY != curY) {
+		if ((curPrevX != curX || curPrevY != curY) && (EventIndex != 2)) {
 			DrawCursor(bltScrn, curX, curY);
 			showCursor = TRUE;
 		}

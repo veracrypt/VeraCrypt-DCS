@@ -146,6 +146,33 @@ BootOrderRemove(
 }
 
 EFI_STATUS
+BootOrderPresent(
+    IN CHAR16 *OrderVarName,
+    UINT16   value)
+{
+    EFI_STATUS res = EFI_NOT_READY;
+    UINT16*   varBootOrder;
+    UINTN     varBootOrderSize;
+    UINT32    varBootOrderAttr;
+    UINTN     BootOrderCount;
+    UINTN     i;
+    UINTN     j;
+
+    res = EfiGetVar(OrderVarName, &gEfiGlobalVariableGuid, &varBootOrder, &varBootOrderSize, &varBootOrderAttr);
+    if (EFI_ERROR(res)) return res;
+    BootOrderCount = varBootOrderSize / sizeof(UINT16);
+    res = EFI_NOT_FOUND;
+    for (j = 0, i = 0; i < BootOrderCount; ++i) {
+        if (varBootOrder[i] == value) {
+            MEM_FREE(varBootOrder);
+            res = EFI_SUCCESS;
+            break;
+        }
+    }
+    return res;
+}
+
+EFI_STATUS
 BootMenuItemRemove(
 	IN CHAR16     *VarName
 	)

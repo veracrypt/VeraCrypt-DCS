@@ -13,18 +13,27 @@ https://opensource.org/licenses/LGPL-3.0
 
 #include <Uefi.h>
 #include <Guid/EventGroup.h>
+#include <Guid/GlobalVariable.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiRuntimeLib.h>
 #include <Library/BaseLib.h>
 #include <Library/UefiLib.h>
 
+#include <Library/CommonLib.h>
+
+#include <Protocol/DcsBmlProto.h>
+#include "DcsBml.h"
+
+//////////////////////////////////////////////////////////////////////////
+// Runtime data to lock
+//////////////////////////////////////////////////////////////////////////
 typedef struct _BML_GLOBALS {
 	UINT64		Signature;
 	UINTN			size;
 } BML_GLOBALS, *PBML_GLOBALS;
 
 STATIC PBML_GLOBALS   gBmlData = NULL;
-STATIC BOOLEAN        BootMenuLocked = TRUE;
+STATIC BOOLEAN        BootMenuLocked = FALSE;
 EFI_EVENT             mBmlVirtualAddrChangeEvent;
 EFI_SET_VARIABLE      orgSetVariable = NULL;
 
@@ -71,6 +80,65 @@ BmlVirtualNotifyEvent(
 	return;
 }
 
+//////////////////////////////////////////////////////////////////////////
+// DcsBml protocol to control lock in BS mode
+//////////////////////////////////////////////////////////////////////////
+CHAR16* sDcsBootEfi = L"EFI\\VeraCrypt\\DcsBoot.efi";
+CHAR16* sDcsBootEfiDesc = L"VeraCrypt(DCS) loader";
+
+GUID gEfiDcsBmlProtocolGuid = EFI_DCSBML_INTERFACE_PROTOCOL_GUID;
+EFI_DCSBML_PROTOCOL gEfiDcsBmlProtocol = {
+    BootMenuLock
+};
+
+EFI_STATUS
+BootMenuLock(
+    IN EFI_DCSBML_PROTOCOL                *This,
+    IN     BOOLEAN                        Lock
+    ) {
+    BootMenuLocked = Lock;
+    return EFI_SUCCESS;
+}
+
+//////////////////////////////////////////////////////////////////////////
+// Driver
+//////////////////////////////////////////////////////////////////////////
+
+/**
+Unloads an image.
+
+@param  ImageHandle           Handle that identifies the image to be unloaded.
+
+@retval EFI_SUCCESS           The image has been unloaded.
+@retval EFI_INVALID_PARAMETER ImageHandle is not a valid image handle.
+
+**/
+EFI_STATUS
+EFIAPI
+DcsBmlUnload(
+    IN EFI_HANDLE  ImageHandle
+    )
+{
+    EFI_STATUS  res;
+
+    res = EFI_SUCCESS;
+    //
+    // Uninstall Driver Supported EFI Version Protocol onto ImageHandle
+    //
+    res = gBS->UninstallMultipleProtocolInterfaces(
+        ImageHandle,
+        &gEfiDcsBmlProtocolGuid, &gEfiDcsBmlProtocol,
+        NULL
+        );
+
+    if (EFI_ERROR(res)) {
+        return res;
+    }
+    // Clean up
+    return EFI_SUCCESS;
+}
+
+
 /**
 The actual entry point for the application.
 
@@ -89,7 +157,27 @@ DcsBmlMain(
    )
 {
    EFI_STATUS          res;
+   // Check multiple execution of DcsBml
+   if (!EFI_ERROR(InitBml())) {
+       return EFI_ACCESS_DENIED;
+   }
 
+   //
+   // Install DcsBml protocol onto ImageHandle
+   //
+   res = gBS->InstallMultipleProtocolInterfaces(
+       &ImageHandle,
+       &gEfiDcsBmlProtocolGuid, &gEfiDcsBmlProtocol,
+       NULL
+       );
+   ASSERT_EFI_ERROR(res);
+
+   if (EFI_ERROR(res)) {
+       Print(L"Install protocol %r\n", res);
+       return res;
+   }
+
+    // runtime lock
 	res = gBS->AllocatePool(
 		EfiRuntimeServicesData,
 		(UINTN) sizeof(BML_GLOBALS),
@@ -120,5 +208,23 @@ DcsBmlMain(
 
 	orgSetVariable = gST->RuntimeServices->SetVariable;
 	gST->RuntimeServices->SetVariable = BmlSetVaribale;
+
+    // select boot next
+    {
+        UINT16  DcsBootNum = 0x0DC5B;
+        UINTN               len;
+        UINT32              attr;
+        CHAR16*             tmp = NULL;
+        res = EfiGetVar(L"BootDC5B", &gEfiGlobalVariableGuid, &tmp, &len, &attr);
+        if (EFI_ERROR(res)) {
+            InitFS();
+            res = BootMenuItemCreate(L"BootDC5B", sDcsBootEfiDesc, gFileRootHandle, sDcsBootEfi, TRUE);
+            res = BootOrderInsert(L"BootOrder", 0, 0x0DC5B);
+        }
+        res = EfiSetVar(L"BootNext", &gEfiGlobalVariableGuid, &DcsBootNum, sizeof(DcsBootNum), EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
+        MEM_FREE(tmp);
+    }
+
+    // Prepare BootDC5B
 	return EFI_SUCCESS;
 }

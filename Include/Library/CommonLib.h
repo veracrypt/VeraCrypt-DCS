@@ -15,8 +15,9 @@ https://opensource.org/licenses/LGPL-3.0
 #define __COMMONLIB_H__
 
 #include <Uefi.h>
-#include <Protocol/BlockIo.h>
 #include <Library/UefiLib.h>
+#include <Protocol/BlockIo.h>
+#include <Protocol/DcsBmlProto.h>
 #include <Protocol/SimpleFileSystem.h>
 #include <Protocol/UsbIo.h>
 #include <Protocol/AbsolutePointer.h>
@@ -551,6 +552,23 @@ SpeakerSelect(
 	);
 
 //////////////////////////////////////////////////////////////////////////
+// BML
+//////////////////////////////////////////////////////////////////////////
+extern EFI_HANDLE*                gBmlHandles;
+extern UINTN                      gBmlCount;
+extern EFI_DCSBML_PROTOCOL*	      gBml;
+extern EFI_GUID                   gBmlGuid;
+
+EFI_STATUS
+InitBml();
+
+EFI_STATUS
+BmlLock(
+    IN BOOLEAN lock
+    );
+
+
+//////////////////////////////////////////////////////////////////////////
 // Efi variables
 //////////////////////////////////////////////////////////////////////////
 
@@ -587,6 +605,11 @@ BootOrderRemove(
 	IN CHAR16 *OrderVarName,
 	UINT16   value
 	);
+
+EFI_STATUS
+BootOrderPresent(
+    IN CHAR16 *OrderVarName,
+    UINT16   value);
 
 EFI_STATUS
 BootMenuItemCreate(

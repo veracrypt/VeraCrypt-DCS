@@ -28,6 +28,9 @@
 
 [Sources]
   DcsBml.c
+  DcsBml.h
+  ComponentName.c
+  ComponentName.h
 
 [Packages]
   MdePkg/MdePkg.dec
@@ -41,14 +44,18 @@
   UefiLib
   UefiRuntimeLib
   UefiBootServicesTableLib
+  CommonLib
 
 [Guids]
   gEfiGlobalVariableGuid
   gEfiDcsVariableGuid
   gEfiEventVirtualAddressChangeGuid
+  gEfiFileInfoGuid
 
 [Protocols]
   gEfiBlockIoProtocolGuid
+  gEfiComponentName2ProtocolGuid
+  gEfiComponentNameProtocolGuid
 
 [BuildOptions.IA32]
 RELEASE_VS2010x86_IA32_CC_FLAGS    =  /arch:IA32 /FAcs

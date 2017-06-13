@@ -83,12 +83,32 @@ UINTN                   SecRegionSize = 0;
 UINTN                   SecRegionOffset = 0;
 PCRYPTO_INFO            SecRegionCryptInfo = NULL;
 
+VOID
+CleanSensitiveData()
+{
+	if (SecRegionCryptInfo != NULL) {
+		MEM_BURN(SecRegionCryptInfo, sizeof(*SecRegionCryptInfo));
+	}
+
+	if (gRnd != NULL) {
+		MEM_BURN(gRnd, sizeof(*gRnd));
+	}
+
+	if (SecRegionData != NULL) {
+		MEM_BURN(SecRegionData, SecRegionSize);
+	}
+
+	if (gAutoPassword != NULL) {
+		MEM_BURN(gAutoPassword, MAX_PASSWORD);
+	}
+}
+
 void HaltPrint(const CHAR16* Msg)
 {
+	CleanSensitiveData();
 	Print(L"%s - system Halted\n", Msg);
 	EfiCpuHalt();
 }
-
 //////////////////////////////////////////////////////////////////////////
 // Boot params memory
 //////////////////////////////////////////////////////////////////////////
@@ -592,7 +612,18 @@ SecRegionChangePwd() {
 	}
 	CopyMem(&gAuthPassword, &newPassword, sizeof(gAuthPassword));
 	CopyMem(SecRegionData + SecRegionOffset, Header, 512);
+
 	ERR_PRINT(L"Update (%r)\n", Status);
+	if (!EFI_ERROR(Status)) {
+		EFI_INPUT_KEY key;
+		key = KeyWait(L"Boot OS in %2d ('r' to reset)   \r", 5, 0, 0);
+		if (key.UnicodeChar == 'r') {
+			MEM_BURN(&newPassword, sizeof(newPassword));
+			MEM_BURN(&confirmPassword, sizeof(confirmPassword));
+			CleanSensitiveData();
+			gST->RuntimeServices->ResetSystem(EfiResetCold, EFI_SUCCESS, 0, NULL);
+		}
+	}
 
 ret:
 	MEM_BURN(&newPassword, sizeof(newPassword));
@@ -935,21 +966,7 @@ VirtualNotifyEvent(
 	)
 {
 	// Clean all sensible info and keys before transfer to OS
-	if (SecRegionCryptInfo != NULL) {
-		MEM_BURN(SecRegionCryptInfo, sizeof(*SecRegionCryptInfo));
-	}
-
-	if (gRnd != NULL) {
-		MEM_BURN(gRnd, sizeof(*gRnd));
-	}
-
-	if (SecRegionData != NULL) {
-		MEM_BURN(SecRegionData, SecRegionSize);
-	}
-
-	if (gAutoPassword != NULL) {
-		MEM_BURN(gAutoPassword, MAX_PASSWORD);
-	}
+	CleanSensitiveData();
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -1137,7 +1154,8 @@ UefiMain(
 	}
 
 	// Lock EFI boot variables
-	EfiExec(NULL, L"EFI\\VeraCrypt\\DcsBml.dcs");
+    InitBml();
+    BmlLock(TRUE);
 
 	// Install decrypt
 	res = EfiLibInstallDriverBindingComponentName2(

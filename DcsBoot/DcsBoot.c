@@ -48,8 +48,50 @@ DoExecCmd()
 	return res;
 }
 
-CHAR16* sDcsBootEfi = L"EFI\\VeraCrypt\\DcsBoot.efi";
-CHAR16* sDcsDriverEfiDesc = L"VeraCrypt(DCS) driver";
+//////////////////////////////////////////////////////////////////////////
+// BML
+//////////////////////////////////////////////////////////////////////////
+CHAR16* sDcsBmlEfi = L"EFI\\VeraCrypt\\DcsBml.dcs";
+CHAR16* sDcsBmlEfiDesc = L"VeraCrypt(DcsBml) driver";
+CHAR16* sDcsBmlDriverVar = L"DriverDC5B";
+UINT16  sDcsBmlDriverNum = 0x0DC5B;
+
+VOID
+UpdateDriverBmlStart() {
+    EFI_STATUS          res;
+    UINTN               len;
+    UINT32              attr;
+    int                 drvInst;
+    CHAR16*             tmp = NULL;
+
+    // Driver load selected?
+    drvInst = ConfigReadInt("DcsBmlDriver", 1);
+    if (drvInst) {
+        res = EfiGetVar(sDcsBmlDriverVar, &gEfiGlobalVariableGuid, &tmp, &len, &attr);
+        // Driver installed?
+        if (EFI_ERROR(res)) {
+            // No -> install
+            res = BootMenuItemCreate(sDcsBmlDriverVar, sDcsBmlEfiDesc, gFileRootHandle, sDcsBmlEfi, FALSE);
+            if (!EFI_ERROR(res)) {
+                len = 0;
+                res = EfiGetVar(L"DriverOrder", &gEfiGlobalVariableGuid, &tmp, &len, &attr);
+                if (!EFI_ERROR(res)) len = len / 2;
+                res = BootOrderInsert(L"DriverOrder", len, sDcsBmlDriverNum);
+            }
+        }
+        MEM_FREE(tmp);
+    }
+    else {
+        // uninstall driver
+        res = EfiGetVar(sDcsBmlDriverVar, &gEfiGlobalVariableGuid, &tmp, &len, &attr);
+        if (!EFI_ERROR(res)) {
+            BootMenuItemRemove(sDcsBmlDriverVar);
+            BootOrderRemove(L"DriverOrder", sDcsBmlDriverNum);
+        }
+    }
+    MEM_FREE(tmp);
+}
+
 /**
 The actual entry point for the application.
 
@@ -67,62 +109,25 @@ DcsBootMain(
    IN EFI_SYSTEM_TABLE  *SystemTable
    )
 {
-   EFI_STATUS          res;
+   EFI_STATUS           res;
 	UINTN               len;
 	UINT32              attr;
-	int                 drvInst;
 	BOOLEAN             searchOnESP = FALSE;
-	EFI_INPUT_KEY       key;
+//	EFI_INPUT_KEY       key;
 
 	InitBio();
    res = InitFS();
    if (EFI_ERROR(res)) {
       ERR_PRINT(L"InitFS %r\n", res);
    }
-	// Check multiple execution
-	res = EfiGetVar(L"DcsExecPartGuid", NULL, &gEfiExecPartGuid, &len, &attr);
-	if (!EFI_ERROR(res)) {
-		// DcsBoot executed already.
-		ERR_PRINT(L"Multiple execution of DcsBoot\n");
-		MEM_FREE(gEfiExecPartGuid);
-		return EFI_INVALID_PARAMETER;
-	}
 
-	// Driver load selected?
-	drvInst = ConfigReadInt("DcsDriver", 0);
-	if (drvInst) {
-		CHAR16* tmp = NULL;
-		// Driver installed?
-		res = EfiGetVar(L"DriverDC5B", &gEfiGlobalVariableGuid, &tmp, &len, &attr);
-		if (EFI_ERROR(res)) {
-			// No - install and reboot.
-			res = BootMenuItemCreate(L"DriverDC5B", sDcsDriverEfiDesc, gFileRootHandle, sDcsBootEfi, FALSE);
-			if (!EFI_ERROR(res)) {
-				len = 0;
-				res = EfiGetVar(L"DriverOrder", &gEfiGlobalVariableGuid, &tmp, &len, &attr);
-				if (!EFI_ERROR(res)) len = len / 2;
-				res = BootOrderInsert(L"DriverOrder", len, 0x0DC5B);
-				OUT_PRINT(L"DcsBoot driver installed, %r\n", res);
-				key = KeyWait(L"%2d   \r", 10, 0, 0);
-				gST->RuntimeServices->ResetSystem(EfiResetCold, EFI_SUCCESS, 0, NULL);
-				return res;
-			}
-			ERR_PRINT(L"Failed to install DcsBoot driver. %r\n", res);
-			key = KeyWait(L"%2d   \r", 10, 0, 0);
-		}
-		MEM_FREE(tmp);
-	}	else {
-		CHAR16* tmp = NULL;
-		// Try uninstall driver
-		res = EfiGetVar(L"DriverDC5B", &gEfiGlobalVariableGuid, &tmp, &len, &attr);
-		if (!EFI_ERROR(res)) {
-			BootMenuItemRemove(L"DriverDC5B");
-			BootOrderRemove(L"DriverOrder", 0x0DC5B);
-			OUT_PRINT(L"DcsBoot driver uninstalled\n");
-			key = KeyWait(L"%2d   \r", 10, 0, 0);
-			gST->RuntimeServices->ResetSystem(EfiResetCold, EFI_SUCCESS, 0, NULL);
-		}
-	}
+   // BML installed?
+   if (EFI_ERROR(InitBml())) {
+       // if not -> execute
+       EfiExec(NULL, sDcsBmlEfi);
+   }
+
+   UpdateDriverBmlStart();
 
 	// Try platform info
 	if (EFI_ERROR(FileExist(NULL, L"\\EFI\\VeraCrypt\\PlatformInfo")) &&
@@ -165,12 +170,12 @@ DcsBootMain(
 	searchOnESP = CompareGuid(gEfiExecPartGuid, &ImagePartGuid) &&
 		EFI_ERROR(FileExist(NULL, gEfiExecCmd));
 
-	// Clear DcsExecPartGuid before execute OS to avoid problem in VirtualBox with reboot.
-	EfiSetVar(L"DcsExecPartGuid", NULL, NULL, 0, EFI_VARIABLE_BOOTSERVICE_ACCESS);
-	EfiSetVar(L"DcsExecCmd", NULL, NULL, 0, EFI_VARIABLE_BOOTSERVICE_ACCESS);
+    // Clear DcsExecPartGuid before execute OS to avoid problem in VirtualBox with reboot.
+    EfiSetVar(L"DcsExecPartGuid", NULL, NULL, 0, EFI_VARIABLE_BOOTSERVICE_ACCESS);
+    EfiSetVar(L"DcsExecCmd", NULL, NULL, 0, EFI_VARIABLE_BOOTSERVICE_ACCESS);
 
 	// Find new start partition
-   ConnectAllEfi();
+    ConnectAllEfi();
 	InitBio();
 	res = InitFS();
 

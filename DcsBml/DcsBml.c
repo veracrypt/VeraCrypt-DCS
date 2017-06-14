@@ -33,7 +33,7 @@ typedef struct _BML_GLOBALS {
 } BML_GLOBALS, *PBML_GLOBALS;
 
 STATIC PBML_GLOBALS   gBmlData = NULL;
-STATIC BOOLEAN        BootMenuLocked = FALSE;
+STATIC BOOLEAN        BootMenuLocked = TRUE;
 EFI_EVENT             mBmlVirtualAddrChangeEvent;
 EFI_SET_VARIABLE      orgSetVariable = NULL;
 
@@ -138,6 +138,32 @@ DcsBmlUnload(
     return EFI_SUCCESS;
 }
 
+//////////////////////////////////////////////////////////////////////////
+// Boot order
+//////////////////////////////////////////////////////////////////////////
+EFI_STATUS
+UpdateBootOrder()
+{
+    EFI_STATUS          res;
+    UINT16              DcsBootNum = 0x0DC5B;
+    UINTN               boIndex = 1;
+    UINTN               len;
+    UINT32              attr;
+    CHAR16*             tmp = NULL;
+    res = EfiGetVar(L"BootDC5B", &gEfiGlobalVariableGuid, &tmp, &len, &attr);
+    if (EFI_ERROR(res)) {
+        InitFS();
+        res = BootMenuItemCreate(L"BootDC5B", sDcsBootEfiDesc, gFileRootHandle, sDcsBootEfi, TRUE);
+        res = BootOrderInsert(L"BootOrder", 0, 0x0DC5B);
+    } else {
+        if (EFI_ERROR(BootOrderPresent(L"BootOrder", 0x0DC5B, &boIndex) || boIndex != 0)) {
+            res = BootOrderInsert(L"BootOrder", 0, 0x0DC5B);
+        }
+    }
+    res = EfiSetVar(L"BootNext", &gEfiGlobalVariableGuid, &DcsBootNum, sizeof(DcsBootNum), EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
+    MEM_FREE(tmp);
+    return res;
+}
 
 /**
 The actual entry point for the application.
@@ -173,7 +199,7 @@ DcsBmlMain(
    ASSERT_EFI_ERROR(res);
 
    if (EFI_ERROR(res)) {
-       Print(L"Install protocol %r\n", res);
+       ERR_PRINT(L"Install protocol %r\n", res);
        return res;
    }
 
@@ -185,7 +211,7 @@ DcsBmlMain(
 		);
 
 	if (EFI_ERROR(res)) {
-		Print(L"Allocate runtime globals %r\n", res);
+        ERR_PRINT(L"Allocate runtime globals %r\n", res);
 		return res;
 	}
 
@@ -202,28 +228,14 @@ DcsBmlMain(
 		);
 
    if (EFI_ERROR(res)) {
-		Print(L"Register notify %r\n", res);
+		ERR_PRINT(L"Register notify %r\n", res);
 		return res;
    }
 
+   UpdateBootOrder();
+
 	orgSetVariable = gST->RuntimeServices->SetVariable;
 	gST->RuntimeServices->SetVariable = BmlSetVaribale;
-
-    // select boot next
-    {
-        UINT16  DcsBootNum = 0x0DC5B;
-        UINTN               len;
-        UINT32              attr;
-        CHAR16*             tmp = NULL;
-        res = EfiGetVar(L"BootDC5B", &gEfiGlobalVariableGuid, &tmp, &len, &attr);
-        if (EFI_ERROR(res)) {
-            InitFS();
-            res = BootMenuItemCreate(L"BootDC5B", sDcsBootEfiDesc, gFileRootHandle, sDcsBootEfi, TRUE);
-            res = BootOrderInsert(L"BootOrder", 0, 0x0DC5B);
-        }
-        res = EfiSetVar(L"BootNext", &gEfiGlobalVariableGuid, &DcsBootNum, sizeof(DcsBootNum), EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
-        MEM_FREE(tmp);
-    }
 
     // Prepare BootDC5B
 	return EFI_SUCCESS;

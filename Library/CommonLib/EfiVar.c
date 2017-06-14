@@ -148,7 +148,8 @@ BootOrderRemove(
 EFI_STATUS
 BootOrderPresent(
     IN CHAR16 *OrderVarName,
-    UINT16   value)
+    UINT16    value,
+    UINTN     *index)
 {
     EFI_STATUS res = EFI_NOT_READY;
     UINT16*   varBootOrder;
@@ -156,19 +157,19 @@ BootOrderPresent(
     UINT32    varBootOrderAttr;
     UINTN     BootOrderCount;
     UINTN     i;
-    UINTN     j;
 
     res = EfiGetVar(OrderVarName, &gEfiGlobalVariableGuid, &varBootOrder, &varBootOrderSize, &varBootOrderAttr);
     if (EFI_ERROR(res)) return res;
     BootOrderCount = varBootOrderSize / sizeof(UINT16);
     res = EFI_NOT_FOUND;
-    for (j = 0, i = 0; i < BootOrderCount; ++i) {
+    for (i = 0; i < BootOrderCount; ++i) {
         if (varBootOrder[i] == value) {
-            MEM_FREE(varBootOrder);
             res = EFI_SUCCESS;
             break;
         }
     }
+    if (index != NULL) *index = i;
+    MEM_FREE(varBootOrder);
     return res;
 }
 

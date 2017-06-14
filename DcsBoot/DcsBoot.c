@@ -54,7 +54,7 @@ DoExecCmd()
 CHAR16* sDcsBmlEfi = L"EFI\\VeraCrypt\\DcsBml.dcs";
 CHAR16* sDcsBmlEfiDesc = L"VeraCrypt(DcsBml) driver";
 CHAR16* sDcsBmlDriverVar = L"DriverDC5B";
-UINT16  sDcsBmlDriverNum = 0x0DC5B;
+UINT16  DcsBmlDriverNum = 0x0DC5B;
 
 VOID
 UpdateDriverBmlStart() {
@@ -72,12 +72,14 @@ UpdateDriverBmlStart() {
         if (EFI_ERROR(res)) {
             // No -> install
             res = BootMenuItemCreate(sDcsBmlDriverVar, sDcsBmlEfiDesc, gFileRootHandle, sDcsBmlEfi, FALSE);
+//            ERR_PRINT(L"Drv %s %r\n", sDcsBmlDriverVar, res);
             if (!EFI_ERROR(res)) {
                 len = 0;
                 res = EfiGetVar(L"DriverOrder", &gEfiGlobalVariableGuid, &tmp, &len, &attr);
                 if (!EFI_ERROR(res)) len = len / 2;
-                res = BootOrderInsert(L"DriverOrder", len, sDcsBmlDriverNum);
+                res = BootOrderInsert(L"DriverOrder", len, DcsBmlDriverNum);
             }
+//            ERR_PRINT(L"Drv order %d %r\n", len, res);
         }
         MEM_FREE(tmp);
     }
@@ -86,7 +88,7 @@ UpdateDriverBmlStart() {
         res = EfiGetVar(sDcsBmlDriverVar, &gEfiGlobalVariableGuid, &tmp, &len, &attr);
         if (!EFI_ERROR(res)) {
             BootMenuItemRemove(sDcsBmlDriverVar);
-            BootOrderRemove(L"DriverOrder", sDcsBmlDriverNum);
+            BootOrderRemove(L"DriverOrder", DcsBmlDriverNum);
         }
     }
     MEM_FREE(tmp);

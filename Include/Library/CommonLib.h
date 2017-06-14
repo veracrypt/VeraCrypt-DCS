@@ -609,7 +609,8 @@ BootOrderRemove(
 EFI_STATUS
 BootOrderPresent(
     IN CHAR16 *OrderVarName,
-    UINT16   value);
+    UINT16   value,
+    UINTN     *index);
 
 EFI_STATUS
 BootMenuItemCreate(

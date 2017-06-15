@@ -156,7 +156,7 @@ UpdateBootOrder()
         res = BootMenuItemCreate(L"BootDC5B", sDcsBootEfiDesc, gFileRootHandle, sDcsBootEfi, TRUE);
         res = BootOrderInsert(L"BootOrder", 0, 0x0DC5B);
     } else {
-        if (EFI_ERROR(BootOrderPresent(L"BootOrder", 0x0DC5B, &boIndex) || boIndex != 0)) {
+        if (EFI_ERROR(BootOrderPresent(L"BootOrder", 0x0DC5B, &boIndex)) || boIndex != 0) {
             res = BootOrderInsert(L"BootOrder", 0, 0x0DC5B);
         }
     }

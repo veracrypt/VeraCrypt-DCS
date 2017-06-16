@@ -33,7 +33,7 @@ typedef struct _BML_GLOBALS {
 } BML_GLOBALS, *PBML_GLOBALS;
 
 STATIC PBML_GLOBALS   gBmlData = NULL;
-STATIC BOOLEAN        BootMenuLocked = TRUE;
+STATIC BOOLEAN        BootMenuLocked = FALSE;
 EFI_EVENT             mBmlVirtualAddrChangeEvent;
 EFI_SET_VARIABLE      orgSetVariable = NULL;
 
@@ -81,11 +81,37 @@ BmlVirtualNotifyEvent(
 }
 
 //////////////////////////////////////////////////////////////////////////
-// DcsBml protocol to control lock in BS mode
+// Boot order
 //////////////////////////////////////////////////////////////////////////
 CHAR16* sDcsBootEfi = L"EFI\\VeraCrypt\\DcsBoot.efi";
 CHAR16* sDcsBootEfiDesc = L"VeraCrypt(DCS) loader";
 
+EFI_STATUS
+UpdateBootOrder()
+{
+    EFI_STATUS          res;
+    UINTN               len;
+    UINT32              attr;
+    CHAR16*             tmp = NULL;
+    res = EfiGetVar(L"BootDC5B", &gEfiGlobalVariableGuid, &tmp, &len, &attr);
+    if (EFI_ERROR(res)) {
+        InitFS();
+        res = BootMenuItemCreate(L"BootDC5B", sDcsBootEfiDesc, gFileRootHandle, sDcsBootEfi, TRUE);
+        res = BootOrderInsert(L"BootOrder", 0, 0x0DC5B);
+    }
+    else {
+        UINTN               boIndex = 1;
+        if (EFI_ERROR(BootOrderPresent(L"BootOrder", 0x0DC5B, &boIndex)) || boIndex != 0) {
+            res = BootOrderInsert(L"BootOrder", 0, 0x0DC5B);
+        }
+    }
+    MEM_FREE(tmp);
+    return res;
+}
+
+//////////////////////////////////////////////////////////////////////////
+// DcsBml protocol to control lock in BS mode
+//////////////////////////////////////////////////////////////////////////
 GUID gEfiDcsBmlProtocolGuid = EFI_DCSBML_INTERFACE_PROTOCOL_GUID;
 EFI_DCSBML_PROTOCOL gEfiDcsBmlProtocol = {
     BootMenuLock
@@ -94,9 +120,22 @@ EFI_DCSBML_PROTOCOL gEfiDcsBmlProtocol = {
 EFI_STATUS
 BootMenuLock(
     IN EFI_DCSBML_PROTOCOL                *This,
-    IN     BOOLEAN                        Lock
+    IN     UINT32                          LockFlags
     ) {
-    BootMenuLocked = Lock;
+    if ((LockFlags & BML_UPDATE_BOOTORDER) == BML_UPDATE_BOOTORDER) {
+        UpdateBootOrder();
+    }
+    if ((LockFlags & BML_SET_BOOTNEXT) == BML_SET_BOOTNEXT) {
+        UINT16              DcsBootNum = 0x0DC5B;
+        EfiSetVar(L"BootNext", &gEfiGlobalVariableGuid, &DcsBootNum, sizeof(DcsBootNum), EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
+    }
+    if ((LockFlags & BML_LOCK_SETVARIABLE) == BML_LOCK_SETVARIABLE) {
+        if (orgSetVariable == NULL) {
+            BootMenuLocked = TRUE;
+            orgSetVariable = gST->RuntimeServices->SetVariable;
+            gST->RuntimeServices->SetVariable = BmlSetVaribale;
+        }
+    }
     return EFI_SUCCESS;
 }
 
@@ -136,33 +175,6 @@ DcsBmlUnload(
     }
     // Clean up
     return EFI_SUCCESS;
-}
-
-//////////////////////////////////////////////////////////////////////////
-// Boot order
-//////////////////////////////////////////////////////////////////////////
-EFI_STATUS
-UpdateBootOrder()
-{
-    EFI_STATUS          res;
-    UINT16              DcsBootNum = 0x0DC5B;
-    UINTN               boIndex = 1;
-    UINTN               len;
-    UINT32              attr;
-    CHAR16*             tmp = NULL;
-    res = EfiGetVar(L"BootDC5B", &gEfiGlobalVariableGuid, &tmp, &len, &attr);
-    if (EFI_ERROR(res)) {
-        InitFS();
-        res = BootMenuItemCreate(L"BootDC5B", sDcsBootEfiDesc, gFileRootHandle, sDcsBootEfi, TRUE);
-        res = BootOrderInsert(L"BootOrder", 0, 0x0DC5B);
-    } else {
-        if (EFI_ERROR(BootOrderPresent(L"BootOrder", 0x0DC5B, &boIndex)) || boIndex != 0) {
-            res = BootOrderInsert(L"BootOrder", 0, 0x0DC5B);
-        }
-    }
-    res = EfiSetVar(L"BootNext", &gEfiGlobalVariableGuid, &DcsBootNum, sizeof(DcsBootNum), EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
-    MEM_FREE(tmp);
-    return res;
 }
 
 /**
@@ -232,11 +244,5 @@ DcsBmlMain(
 		return res;
    }
 
-   UpdateBootOrder();
-
-	orgSetVariable = gST->RuntimeServices->SetVariable;
-	gST->RuntimeServices->SetVariable = BmlSetVaribale;
-
-    // Prepare BootDC5B
 	return EFI_SUCCESS;
 }

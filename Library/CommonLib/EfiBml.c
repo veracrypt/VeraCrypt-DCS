@@ -46,7 +46,7 @@ InitBml() {
 
 EFI_STATUS
 BmlLock(
-	IN BOOLEAN lock
+	IN UINT32 lock
 	)
 {
 	if (gBml != NULL) {

@@ -57,8 +57,8 @@ extern EFI_DCSBML_PROTOCOL gEfiDcsBmlProtocol;
 
 EFI_STATUS
 BootMenuLock(
-    IN EFI_DCSBML_PROTOCOL                *This,
-    IN     BOOLEAN                        Lock
+    IN EFI_DCSBML_PROTOCOL     *This,
+    IN UINT32                  LockFlags
     );
 
 

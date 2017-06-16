@@ -18,6 +18,7 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Library/DevicePathLib.h>
 #include <Library/BaseMemoryLib.h>
 #include <Library/PrintLib.h>
+#include <Protocol/DcsBmlProto.h>
 #include "DcsConfig.h"
 #include <Guid/Gpt.h>
 #include <Guid/GlobalVariable.h>
@@ -37,6 +38,11 @@ DoExecCmd()
 	if (!EFI_ERROR(res)) {
 		res = FileOpenRoot(gFileRootHandle, &gFileRoot);
 		if (!EFI_ERROR(res)) {
+            UINT32 lockFlags = 0;
+            // Lock EFI boot variables
+            InitBml();
+            lockFlags = ConfigReadInt("DcsBmlLockFlags", BML_LOCK_SETVARIABLE | BML_SET_BOOTNEXT | BML_UPDATE_BOOTORDER);
+            BmlLock(lockFlags);
 			res = EfiExec(NULL, gEfiExecCmd);
 			AsciiSPrint(gDoExecCmdMsg, sizeof(gDoExecCmdMsg), "\nCan't exec %s start partition %g\n", gEfiExecCmd, gEfiExecPartGuid);
 		}	else {

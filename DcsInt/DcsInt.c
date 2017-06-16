@@ -1153,10 +1153,6 @@ UefiMain(
 		return OnExit(gOnExitFailed, OnExitAuthFaild, res);
 	}
 
-	// Lock EFI boot variables
-    InitBml();
-    BmlLock(TRUE);
-
 	// Install decrypt
 	res = EfiLibInstallDriverBindingComponentName2(
 		ImageHandle,

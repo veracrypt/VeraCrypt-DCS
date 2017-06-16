@@ -29,6 +29,10 @@ https://opensource.org/licenses/LGPL-3.0
 
 typedef struct _EFI_DCSBML_PROTOCOL  EFI_DCSBML_PROTOCOL;
 
+#define BML_LOCK_SETVARIABLE    0x1
+#define BML_UPDATE_BOOTORDER    0x2
+#define BML_SET_BOOTNEXT        0x4
+
 //
 // Lock boot menu
 //
@@ -36,7 +40,7 @@ typedef
 EFI_STATUS
 (EFIAPI *EFI_BOOT_MENU_LOCK) (
   IN EFI_DCSBML_PROTOCOL                *This,
-  IN     BOOLEAN                        Lock
+  IN     UINT32                          LockFlags
   );
 
 

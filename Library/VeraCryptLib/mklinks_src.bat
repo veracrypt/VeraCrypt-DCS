@@ -81,6 +81,8 @@ set create_link_skip_pushd=N
 
 @echo on
 copy /Y Twofish_x64.S.precompiled Twofish_x64.obj
+copy /Y Camellia_aesni_x64.S.precompiled Camellia_aesni_x64.obj
+copy /Y Camellia_x64.S.precompiled Camellia_x64.obj
 @echo off
 
 goto :end

@@ -77,6 +77,8 @@ crypto\Aes_x86.nasm
 
 [Binaries.X64]
 LIB|Twofish_x64.obj|*
+LIB|Camellia_aesni_x64.obj|*
+LIB|Camellia_x64.obj|*
 
 [Packages]
   MdePkg/MdePkg.dec

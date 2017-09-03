@@ -71,7 +71,7 @@ UpdateDriverBmlStart() {
     CHAR16*             tmp = NULL;
 
     // Driver load selected?
-    drvInst = ConfigReadInt("DcsBmlDriver", 1);
+    drvInst = ConfigReadInt("DcsBmlDriver", 0);
     if (drvInst) {
         res = EfiGetVar(sDcsBmlDriverVar, &gEfiGlobalVariableGuid, &tmp, &len, &attr);
         // Driver installed?

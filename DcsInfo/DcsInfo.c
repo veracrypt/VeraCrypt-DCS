@@ -212,7 +212,22 @@ InfoTcg() {
 
 VOID
 InfoBlockDevices() {
-	XmlTag(fInfo, "BlockDevices", TRUE, NULL, " count=\"%d\"", gBIOCount, NULL);
+    UINTN i;
+    XmlTag(fInfo, "BlockDevices", FALSE, NULL, " count=\"%d\"", gBIOCount, NULL);
+    FileAsciiPrint(fInfo, "\n");
+    gXmlTabs++;
+    for (i = 0; i < gBIOCount; ++i) {
+        EFI_BLOCK_IO_PROTOCOL *bio;
+        bio = EfiGetBlockIO(gBIOHandles[i]);
+        if (bio != NULL && bio->Media != NULL) {
+            XmlTag(fInfo, "BlockDevice", TRUE, NULL,
+                " index=\"%d\" logical=\"%d\" block_size=\"%d\" revision=\"%llx\" read_only=\"%d\" last_block=\"%lld\"", i,
+                bio->Media->LogicalPartition, bio->Media->BlockSize, bio->Revision,
+                bio->Media->ReadOnly,
+                bio->Media->LastBlock, NULL);
+        }
+    }
+    XmlEndTag(fInfo, "BlockDevices");
 }
 
 VOID

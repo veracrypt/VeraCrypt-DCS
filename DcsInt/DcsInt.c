@@ -494,13 +494,20 @@ SecRegionLoadDefault(EFI_HANDLE partHandle)
 	// get BlockIo protocol
 	bio = EfiGetBlockIO(SecRegionHandle);
 	if (bio == NULL) {
-		ERR_PRINT(L"Block io not supported\n,");
+		ERR_PRINT(L"Block I/O not supported\n");
 		return EFI_NOT_FOUND;
 	}
 
+    if (bio->Media != NULL) {
+        if (bio->Media->BlockSize != 512) {
+            ERR_PRINT(L"Block size is %d. (not supported)\n", bio->Media->BlockSize);
+            return EFI_INVALID_PARAMETER;
+        }
+    }
+
 	SecRegionData = MEM_ALLOC(512);
 	if (SecRegionData == NULL) {
-		ERR_PRINT(L"No memory\n,");
+		ERR_PRINT(L"No memory\n");
 		return EFI_BUFFER_TOO_SMALL;
 	}
 	SecRegionSize = 512;

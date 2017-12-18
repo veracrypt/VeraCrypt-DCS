@@ -1,237 +1,246 @@
-#include <uefi.h>
-void __cdecl atexit() {}
+/** @file
+64-bit Math Worker Function.
+The 32-bit versions of C compiler generate calls to library routines
+to handle 64-bit math. These functions use non-standard calling conventions.
 
-int __cdecl _purecall() { return 0; }
+Copyright (c) 2009 - 2011, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials are licensed and made available
+under the terms and conditions of the BSD License which accompanies this
+distribution.  The full text of the license may be found at
+http://opensource.org/licenses/bsd-license.php.
+
+THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
+WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
+
+**/
+
+#include <uefi.h>
+#include <Library/BaseLib.h>
 
 #if defined(_M_IX86)
 //////////////////////////////////////////////////////////////////////////
 // _allmul
 //////////////////////////////////////////////////////////////////////////
-__declspec(naked) void __cdecl _allmul(void)
+/*
+ * Multiplies a 64-bit signed or unsigned value by a 64-bit signed or unsigned value
+ * and returns a 64-bit result.
+ */
+__declspec(naked) void __cdecl _allmul (void)
 {
-   _asm {
-      mov  ebx, [esp + 4]              ; ebx <- M1[0..31]
-      mov  edx, [esp + 12]             ; edx <- M2[0..31]
-      mov  ecx, ebx
-      mov  eax, edx
-      imul ebx, [esp + 16]             ; ebx <- M1[0..31] * M2[32..63]
-      imul edx, [esp + 8]              ; edx <- M1[32..63] * M2[0..31]
-      add  ebx, edx                    ; carries are abandoned
-      mul  ecx                         ; edx:eax <- M1[0..31] * M2[0..31]
-      add  edx, ebx                    ; carries are abandoned
-      ret 16
-   }
-}
+  //
+  // Wrapper Implementation over EDKII MultS64x64() routine
+  //    INT64
+  //    EFIAPI
+  //    MultS64x64 (
+  //      IN      INT64      Multiplicand,
+  //      IN      INT64      Multiplier
+  //      )
+  //
+  _asm {
+    ; Original local stack when calling _allmul
+    ;               -----------------
+    ;               |               |
+    ;               |---------------|
+    ;               |               |
+    ;               |--Multiplier --|
+    ;               |               |
+    ;               |---------------|
+    ;               |               |
+    ;               |--Multiplicand-|
+    ;               |               |
+    ;               |---------------|
+    ;               |  ReturnAddr** |
+    ;       ESP---->|---------------|
+    ;
 
-//////////////////////////////////////////////////////////////////////////
-// _aullmul
-//////////////////////////////////////////////////////////////////////////
-__declspec(naked) void __cdecl _aullmul()
-{
-   _asm {
-      mov  ebx, [esp + 4]              ; ebx <- M1[0..31]
-      mov  edx, [esp + 12]             ; edx <- M2[0..31]
-      mov  ecx, ebx
-      mov  eax, edx
-      imul ebx, [esp + 16]             ; ebx <- M1[0..31] * M2[32..63]
-      imul edx, [esp + 8]              ; edx <- M1[32..63] * M2[0..31]
-      add  ebx, edx                    ; carries are abandoned
-      mul  ecx                         ; edx:eax <- M1[0..31] * M2[0..31]
-      add  edx, ebx                    ; carries are abandoned
-      ret 16
-   }
-}
+    ;
+    ; Set up the local stack for Multiplicand parameter
+    ;
+    mov  eax, [esp + 16]
+    push eax
+    mov  eax, [esp + 16]
+    push eax
+
+    ;
+    ; Set up the local stack for Multiplier parameter
+    ;
+    mov  eax, [esp + 16]
+    push eax
+    mov  eax, [esp + 16]
+    push eax
+
+    ;
+    ; Call native MulS64x64 of BaseLib
+    ;
+    call MultS64x64
+
+    ;
+    ; Adjust stack
+    ;
+    add  esp, 16
+
+    ret  16
+  }
+} 
 
 //////////////////////////////////////////////////////////////////////////
 // _alldiv
 //////////////////////////////////////////////////////////////////////////
-__declspec(naked) void __cdecl _alldiv()
+/*
+ * Divides a 64-bit signed value with a 64-bit signed value and returns
+ * a 64-bit signed result.
+ */
+__declspec(naked) void __cdecl _alldiv (void)
 {
-   _asm {
-      ; Check sign of res
-      mov     ebx, [esp + 8]    ; dividend msdw
-      mov     ecx, [esp + 16]   ; divisor msdw
-      xor     ebx, ecx
-      shr     ebx, 31
-      jz      _PosRes           ; if Result is positive
-      push    1                 ; if is negative
-      jmp _Preparing
-      _PosRes:
-      push    0
+  //
+  // Wrapper Implementation over EDKII DivS64x64Remainder() routine
+  //    INT64
+  //    EFIAPI
+  //    DivS64x64Remainder (
+  //      IN      UINT64     Dividend,
+  //      IN      UINT64     Divisor,
+  //      OUT     UINT64     *Remainder  OPTIONAL
+  //      )
+  //
+  _asm {
 
-      ; Preparing operands
-      ; Dividend
-      _Preparing:
-      mov     ecx, [esp + 12]
-      shr     ecx, 31
-      jz      _ChkDvsr                        ; Divident is positive
-      mov     eax, [esp + 12]                 ; is negative
-      mov     ecx, [esp + 8]
-      xor     eax, 0xFFFFFFFF
-      xor     ecx, 0xFFFFFFFF
-      add     ecx, 1
-      jnc     _DvntOK
-      adc     eax, 0
-      _DvntOK:
-      mov     [esp + 12], eax
-      mov     [esp + 8], ecx
+    ;Entry:
+    ;       Arguments are passed on the stack:
+    ;               1st pushed: divisor (QWORD)
+    ;               2nd pushed: dividend (QWORD)
+    ;
+    ;Exit:
+    ;       EDX:EAX contains the quotient (dividend/divisor)
+    ;       NOTE: this routine removes the parameters from the stack.
+    ;
+    ; Original local stack when calling _alldiv
+    ;               -----------------
+    ;               |               |
+    ;               |---------------|
+    ;               |               |
+    ;               |--  Divisor  --|
+    ;               |               |
+    ;               |---------------|
+    ;               |               |
+    ;               |--  Dividend --|
+    ;               |               |
+    ;               |---------------|
+    ;               |  ReturnAddr** |
+    ;       ESP---->|---------------|
+    ;
 
-      ; Divisor
-      _ChkDvsr:
-      mov     ecx, [esp + 20]
-      shr     ecx, 31
-      jz      _Divide                         ; Divisor is positive
-      mov     eax, [esp + 20]                 ; is negative
-      mov     ecx, [esp + 16]
-      xor     eax, 0xFFFFFFFF
-      xor     ecx, 0xFFFFFFFF
-      add     ecx, 1
-      jnc     _DvsrOK
-      adc     eax, 0
-      _DvsrOK:
-      mov     [esp + 20], eax
-      mov     [esp + 16], ecx
-      
-      _Divide:
-      mov     ecx, [esp + 20]             ; ecx <- divisor[32..63]
-      test    ecx, ecx
-      jnz     __DivRemU64x64              ; call __DivRemU64x64 if Divisor > 2^32
-      mov     ecx, [esp + 16]             ; ecx <- divisor
-      mov     eax, [esp + 12]             ; eax <- dividend[32..63]
-      xor     edx, edx
-      div     ecx                         ; eax <- quotient[32..63], edx <- remainder
-      push    eax
-      mov     eax, [esp + 12]             ; eax <- dividend[0..31]
-      div     ecx                         ; eax <- quotient[0..31]
-      pop     edx                         ; edx <- quotient[32..63] - edx:eax
-      jmp     _GetSign
+    ;
+    ; Set up the local stack for NULL Reminder pointer
+    ;
+    xor  eax, eax
+    push eax
 
-      __DivRemU64x64:
-      mov     edx, dword ptr [esp + 12]
-      mov     eax, dword ptr [esp + 8]    ; edx:eax <- dividend
-      mov     edi, edx
-      mov     esi, eax                    ; edi:esi <- dividend
-      mov     ebx, dword ptr [esp + 16]   ; ecx:ebx <- divisor
-      _B:
-      shr     edx, 1
-      rcr     eax, 1
-      shrd    ebx, ecx, 1
-      shr     ecx, 1
-      jnz     _B
-      div     ebx
-      mov     ebx, eax                    ; ebx <- quotient
-      mov     ecx, [esp + 20]             ; ecx <- high dword of divisor
-      mul     dword ptr [esp + 16]        ; edx:eax <- quotient * divisor[0..31]
-      imul    ecx, ebx                    ; ecx <- quotient * divisor[32..63]
-      add     edx, ecx                    ; edx <- (quotient * divisor)[32..63]
-      ;mov     ecx, dword ptr [esp + 32]   ; ecx <- addr for Remainder
-      jc      _TooLarge                   ; product > 2^64
-      cmp     edi, edx                    ; compare high 32 bits
-      ja      _Correct
-      jb      _TooLarge                   ; product > dividend
-      cmp     esi, eax
-      jae     _Correct                    ; product <= dividend
-      _TooLarge:
-      dec     ebx                         ; adjust quotient by -1
-      jecxz   _Return                     ; return if Remainder == NULL
-      sub     eax, dword ptr [esp + 16]
-      sbb     edx, dword ptr [esp + 20]   ; edx:eax <- (quotient - 1) * divisor
-      _Correct:
-      jecxz   _Return
-      sub     esi, eax
-      sbb     edi, edx                    ; edi:esi <- remainder
-      ;mov     [ecx], esi
-      ;mov     [ecx + 4], edi
-      _Return:
-      mov     eax, ebx                    ; eax <- quotient
-      xor     edx, edx                    ; quotient is 32 bits long
+    ;
+    ; Set up the local stack for Divisor parameter
+    ;
+    mov  eax, [esp + 20]
+    push eax
+    mov  eax, [esp + 20]
+    push eax
 
-      ; Get sign of result
-      _GetSign:
-      pop     ecx                         ; Sign of res
-      jecxz   _Rtrn                       ; Result is positive
-      xor     eax, 0xFFFFFFFF
-      xor     edx, 0xFFFFFFFF
-      add     eax, 1                      ; edx:eax
-      jnc     _Rtrn
-      adc     edx, 0
+    ;
+    ; Set up the local stack for Dividend parameter
+    ;
+    mov  eax, [esp + 20]
+    push eax
+    mov  eax, [esp + 20]
+    push eax
 
-      _Rtrn:
-      ret     16
-   }
+    ;
+    ; Call native DivS64x64Remainder of BaseLib
+    ;
+    call DivS64x64Remainder
+
+    ;
+    ; Adjust stack
+    ;
+    add  esp, 20
+
+    ret  16
+  }
 }
 
 //////////////////////////////////////////////////////////////////////////
 // _aulldiv
 //////////////////////////////////////////////////////////////////////////
-__declspec(naked) void __cdecl _aulldiv()
+/*
+ * Divides a 64-bit unsigned value with a 64-bit unsigned value and returns
+ * a 64-bit unsigned result.
+ */
+__declspec(naked) void __cdecl _aulldiv (void)
 {
-   _asm {
-      mov     ecx, [esp + 16]             ; ecx <- divisor[32..63]
-      test    ecx, ecx
-      jnz     __DivRemU64x64              ; call __DivRemU64x64 if Divisor > 2^32
-      mov     ecx, [esp + 12]             ; ecx <- divisor
-      mov     eax, [esp + 8]              ; eax <- dividend[32..63]
-      xor     edx, edx
-      div     ecx                         ; eax <- quotient[32..63], edx <- remainder
-      push    eax
-      mov     eax, [esp + 8]              ; eax <- dividend[0..31]
-      div     ecx                         ; eax <- quotient[0..31]
-      pop     edx                         ; edx <- quotient[32..63]
-      ret     16
+  //
+  // Wrapper Implementation over EDKII DivU64x64Reminder() routine
+  //    UINT64
+  //    EFIAPI
+  //    DivU64x64Remainder (
+  //      IN      UINT64     Dividend,
+  //      IN      UINT64     Divisor,
+  //      OUT     UINT64     *Remainder  OPTIONAL
+  //      )
+  //
+  _asm {
 
-      __DivRemU64x64:
-      mov     edx, dword ptr [esp + 8]
-      mov     eax, dword ptr [esp + 4]    ; edx:eax <- dividend
-      mov     edi, edx
-      mov     esi, eax                    ; edi:esi <- dividend
-      mov     ebx, dword ptr [esp + 12]   ; ecx:ebx <- divisor
-      _B:
-      shr     edx, 1
-      rcr     eax, 1
-      shrd    ebx, ecx, 1
-      shr     ecx, 1
-      jnz     _B
-      div     ebx
-      mov     ebx, eax                    ; ebx <- quotient
-      mov     ecx, [esp + 16]             ; ecx <- high dword of divisor
-      mul     dword ptr [esp + 12]        ; edx:eax <- quotient * divisor[0..31]
-      imul    ecx, ebx                    ; ecx <- quotient * divisor[32..63]
-      add     edx, ecx                    ; edx <- (quotient * divisor)[32..63]
-      ;mov     ecx, dword ptr [esp + 32]   ; ecx <- addr for Remainder
-      jc      _TooLarge                   ; product > 2^64
-      cmp     edi, edx                    ; compare high 32 bits
-      ja      _Correct
-      jb      _TooLarge                   ; product > dividend
-      cmp     esi, eax
-      jae     _Correct                    ; product <= dividend
-      _TooLarge:
-      dec     ebx                         ; adjust quotient by -1
-      jecxz   _Return                     ; return if Remainder == NULL
-      sub     eax, dword ptr [esp + 12]
-      sbb     edx, dword ptr [esp + 16]   ; edx:eax <- (quotient - 1) * divisor
-      _Correct:
-      jecxz   _Return
-      sub     esi, eax
-      sbb     edi, edx                    ; edi:esi <- remainder
-      ;mov     [ecx], esi
-      ;mov     [ecx + 4], edi
-      _Return:
-      mov     eax, ebx                    ; eax <- quotient
-      xor     edx, edx                    ; quotient is 32 bits long
+    ; Original local stack when calling _aulldiv
+    ;               -----------------
+    ;               |               |
+    ;               |---------------|
+    ;               |               |
+    ;               |--  Divisor  --|
+    ;               |               |
+    ;               |---------------|
+    ;               |               |
+    ;               |--  Dividend --|
+    ;               |               |
+    ;               |---------------|
+    ;               |  ReturnAddr** |
+    ;       ESP---->|---------------|
+    ;
 
-      ret     16
-   }
+    ;
+    ; Set up the local stack for NULL Reminder pointer
+    ;
+    xor  eax, eax
+    push eax
+
+    ;
+    ; Set up the local stack for Divisor parameter
+    ;
+    mov  eax, [esp + 20]
+    push eax
+    mov  eax, [esp + 20]
+    push eax
+
+    ;
+    ; Set up the local stack for Dividend parameter
+    ;
+    mov  eax, [esp + 20]
+    push eax
+    mov  eax, [esp + 20]
+    push eax
+
+    ;
+    ; Call native DivU64x64Remainder of BaseLib
+    ;
+    call DivU64x64Remainder
+
+    ;
+    ; Adjust stack
+    ;
+    add  esp, 20
+
+    ret  16
+  }
 }
 
-
-UINT64
-EFIAPI
-DivU64x64Remainder(
-IN      UINT64                    Dividend,
-IN      UINT64                    Divisor,
-OUT     UINT64                    *Remainder  OPTIONAL
-);
+//////////////////////////////////////////////////////////////////////////
+// _aullrem
+//////////////////////////////////////////////////////////////////////////
 /*
  * Divides a 64-bit unsigned value by another 64-bit unsigned value and returns
  * the 64-bit unsigned remainder.

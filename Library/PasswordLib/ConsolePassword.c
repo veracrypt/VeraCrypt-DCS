@@ -101,7 +101,7 @@ AskConsolePwdInt(
 			break;
 		}
 
-		if ((count >= line_max &&
+		if ((count >= (line_max - 1) &&
 			key.UnicodeChar != CHAR_BACKSPACE) ||
 			key.UnicodeChar == CHAR_NULL ||
 			key.UnicodeChar == CHAR_TAB ||

@@ -1,16 +1,25 @@
 Set-ExecutionPolicy Bypass -Force
 Import-Module secureboot
 
-Set-SecureBootUEFI -Name PK -Time 2015-09-11 -Content $null
-Set-SecureBootUEFI -Name KEK -Time 2015-09-11 -Content $null
-Set-SecureBootUEFI -Name db -Time 2015-09-11 -Content $null
-Set-SecureBootUEFI -Name dbx -Time 2015-09-11 -Content $null
+try
+{
+	Set-SecureBootUEFI -Name PK -Time 2015-09-11 -Content $null
+	Set-SecureBootUEFI -Name KEK -Time 2015-09-11 -Content $null
+	Set-SecureBootUEFI -Name db -Time 2015-09-11 -Content $null
+	Set-SecureBootUEFI -Name dbx -Time 2015-09-11 -Content $null
+}
+catch
+{
+}
 
 Write-Host "Setting self-signed PK..."
 Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\DCS_platform_SigList.bin -SignedFilePath siglists\DCS_platform_SigList_Serialization.bin.p7 -Name PK
 
 Write-Host "Setting PK-signed KEK..."
 Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\DCS_key_exchange_SigList.bin -SignedFilePath siglists\DCS_key_exchange_SigList_Serialization.bin.p7 -Name KEK
+
+Write-Host "Setting KEK-signed content of dbx..."
+Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\dbx_list_SigList.bin -SignedFilePath siglists\dbx_list_SigList_Serialization.bin.p7 -Name dbx
 
 Write-Host "Setting KEK-signed DCS cert in db..."
 Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\DCS_sign_SigList.bin -SignedFilePath siglists\DCS_sign_SigList_Serialization.bin.p7 -Name db
@@ -20,3 +29,36 @@ Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\MicWinPr
 
 Write-Host "Setting KEK-signed MS UEFI cert in db..."
 Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\MicCorUEFCA2011_2011-06-27_SigList.bin -SignedFilePath siglists\MicCorUEFCA2011_2011-06-27_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+
+# Add any additional certificate that already existed in your original db variable (see output of dumpEfiVars tool)
+# Below is a list of commands for each manufacturer. Uncommand only the lines that correspond to your configuration
+# as displayed by dumpEfiVars tool
+
+############### Acer ###############
+# Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\Acer_2012-05-31_SigList.bin -SignedFilePath siglists\Acer_2012-05-31_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+# Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\Acer_Database_2013-07-10_SigList.bin -SignedFilePath siglists\Acer_Database_2013-07-10_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+# Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\Acer_db_Manufacture_2015-06-17_SigList.bin -SignedFilePath siglists\Acer_db_Manufacture_2015-06-17_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+# Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\Acer_LINPUS_2012-10-09_SigList.bin -SignedFilePath siglists\Acer_LINPUS_2012-10-09_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+# Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\Acer_Quanta_NB4_2012-07-18_SigList.bin -SignedFilePath siglists\Acer_Quanta_NB4_2012-07-18_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+
+############### ASUS ###############
+# Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\ASUSTeK_MotherBoard_SW_Key_Certificate_2011-12_27_SigList.bin -SignedFilePath siglists\ASUSTeK_MotherBoard_SW_Key_Certificate_2011-12_27_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+# Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\ASUSTeK_Notebook_SW_Key_Certificate_2011-12_27_SigList.bin -SignedFilePath siglists\ASUSTeK_Notebook_SW_Key_Certificate_2011-12_27_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+# Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\Canonical_Master_CA_2012_04_12_SigList.bin -SignedFilePath siglists\Canonical_Master_CA_2012_04_12_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+
+############### DELL ###############
+# Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\Dell_UEFI_DB_2016_06_03_SigList.bin -SignedFilePath siglists\Dell_UEFI_DB_2016_06_03_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+
+############### HP ###############
+# Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\HP_UEFI_Secure_Boot_2013_DB_key_2013_08_23_SigList.bin -SignedFilePath siglists\HP_UEFI_Secure_Boot_2013_DB_key_2013_08_23_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+
+############### Lenovo ###############
+# Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\Lenovo_1T110-1415ISK-2016-02-17_SigList.bin -SignedFilePath siglists\Lenovo_1T110-1415ISK-2016-02-17_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+# Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\Lenovo_DCU31-80E31-80_2015-03-03_SigList.bin -SignedFilePath siglists\Lenovo_DCU31-80E31-80_2015-03-03_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+# Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\Lenovo_ThinkPad_Product_CA_2012-06-29_SigList.bin -SignedFilePath siglists\Lenovo_ThinkPad_Product_CA_2012-06-29_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+# Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\Lenovo_UEFI_CA_2014-01-24_SigList.bin -SignedFilePath siglists\Lenovo_UEFI_CA_2014-01-24_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+
+############### Toshiba ###############
+# Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\Toshiba_Corporation_Utility_CA_2012-08-10_SigList.bin -SignedFilePath siglists\Toshiba_Corporation_Utility_CA_2012-08-10_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+
+

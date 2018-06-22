@@ -417,6 +417,10 @@ RangeCrypt(
 	UINT64                  remainsOnStart;
 	UINT64                  pos;
 	UINTN                   rd;
+	BOOL                    bIsSystemEncyption = FALSE;
+
+	if (info->noIterations == get_pkcs5_iteration_count (info->pkcs5, info->volumePim, FALSE, TRUE))
+		bIsSystemEncyption = TRUE;
 
 	io = EfiGetBlockIO(disk);
 	if (!io) {
@@ -478,6 +482,13 @@ RangeCrypt(
 			if (encrypt) {
 				EncryptDataUnits(buf, (UINT64_STRUCT*)&pos, (UINT32)(rd), info);
 			}	else {
+				if (bIsSystemEncyption && (pos == start) && (0xEB52904E54465320 == BE64 (*(uint64 *) buf)))
+				{
+					// first sector is not encrypted (e.g. because of Windows repair).
+					// So we encrypt it so that decryption will lead to correct result
+					EncryptDataUnits(buf, (UINT64_STRUCT*)&pos, 1, info);
+				}
+				
 				DecryptDataUnits(buf, (UINT64_STRUCT*)&pos, (UINT32)(rd), info);
 			}
 
@@ -560,90 +571,96 @@ RangeCrypt(
 		RangeCryptProgress(size, remains, pos, remainsOnStart);
 	}
 	else if (!encrypt)
-	{
-		BOOL bIsSystemEncyption = FALSE;
-		if (info->noIterations == get_pkcs5_iteration_count (info->pkcs5, info->volumePim, FALSE, TRUE))
-			bIsSystemEncyption = TRUE;
-		
+	{		
 		if (bIsSystemEncyption)
 		{
-			/*
-			 * Case of OS decryption by Rescue Disk
-			 * Check if NTFS marker exists. If not, then probably disk affected by
-			 * bug in 1.19 Rescue Disk which caused the first 50 MB of disk to be 
-			 * decrypted in a wrong way. In this case, try to reverse the faulty decryption
-			 * and then perform correct decryption
-			 */
-			remains = size % CRYPT_BUF_SECTORS;
-			if (remains > 0)
-			{
-				/* 1.19 bug appears only when size not multiple of 50 MB */				
-				res = io->ReadBlocks(io, io->Media->MediaId, start, 512, buf);
-				if (!EFI_ERROR(res)) {
-					if (0xEB52904E54465320 != BE64 (*(uint64 *) buf)) /* NTFS */
+			res = io->ReadBlocks(io, io->Media->MediaId, start, 512, buf);
+			if (!EFI_ERROR(res)) {
+				/*
+				 * Case of OS decryption by Rescue Disk
+				 * Check if NTFS marker exists. If not, then probably disk affected by
+				 * either Windows Repair overwriting first sector or the bug in 1.19 
+				 * Rescue Disk which caused the first 50 MB of disk to be 
+				 * decrypted in a wrong way. In this case, try to reverse the faulty decryption
+				 * and then perform correct decryption
+				 */
+				if (0xEB52904E54465320 != BE64 (*(uint64 *) buf)) /* NTFS */
+				{
+					/* encrypt it to see if the first sector was unencrypted before decrypt done */
+					EncryptDataUnits(buf, (UINT64_STRUCT*)&start, 1, info);
+					
+					if (0xEB52904E54465320 == BE64 (*(uint64 *) buf)) /* NTFS */
 					{
-						if (AskConfirm("\r\nSystem already decrypted but partition can't be recognized.\r\nDid you use 1.19 Rescue Disk previously to decrypt OS?", 1)) {
-							OUT_PRINT(L"\r\nTrying to recover data corrupted by 1.19 Rescue Disk bug.");
-
-							pos = start + remains - CRYPT_BUF_SECTORS;
-							// Read
-							do {
-								res = io->ReadBlocks(io, io->Media->MediaId, pos, CRYPT_BUF_SECTORS << 9, buf);
-								if (EFI_ERROR(res)) {
-									UINT8 ar;
-									ERR_PRINT(L"Read error: %r\n", res);
-									ar = AskAR();
-									if (ar != 'R' && ar != 'r')
-										break;
-								}
-							} while (EFI_ERROR(res));
-							
-							if (EFI_ERROR(res))
-							{
-								OUT_PRINT(L"\r\nNo corrective action performed.");
+						// Write corrected first sector
+						do {
+							res = io->WriteBlocks(io, io->Media->MediaId, start, 512, buf);
+							if (EFI_ERROR(res)) {
+								UINT8 ar;
+								ERR_PRINT(L"Write error: %r\n", res);
+								ar = AskAR();
+								if (ar != 'R' && ar != 'r')
+									break;
 							}
-							else
-							{
-								UINT8* realEncryptedData = buf + ((CRYPT_BUF_SECTORS - remains) << 9);
-								BOOL bPerformWrite = FALSE;
-
-								// reverse faulty decryption
-								EncryptDataUnits(buf, (UINT64_STRUCT*)&pos, (UINT32)(remains), info);
-								
-								// decrypt the correct data
-								DecryptDataUnits(realEncryptedData, (UINT64_STRUCT*)&start, (UINT32)(remains), info);
+						} while (EFI_ERROR(res));
 						
-								if (0xEB52904E54465320 == BE64 (*(uint64 *) realEncryptedData)) /* NTFS */
-									bPerformWrite = TRUE;
+						if (EFI_ERROR(res))
+						{
+							OUT_PRINT(L"\r\nThe corrected first sector could not be written.");
+						}
+					}
+					else
+					{
+						/* restore original value */
+						DecryptDataUnits(buf, (UINT64_STRUCT*)&start, 1, info);
+
+						remains = size % CRYPT_BUF_SECTORS;
+						if (remains > 0)
+						{
+							/* 1.19 bug appears only when size not multiple of 50 MB */																
+							if (AskConfirm("\r\nSystem already decrypted but partition can't be recognized.\r\nDid you use 1.19 Rescue Disk previously to decrypt OS?", 1)) {
+								OUT_PRINT(L"\r\nTrying to recover data corrupted by 1.19 Rescue Disk bug.");
+
+								pos = start + remains - CRYPT_BUF_SECTORS;
+								// Read
+								do {
+									res = io->ReadBlocks(io, io->Media->MediaId, pos, CRYPT_BUF_SECTORS << 9, buf);
+									if (EFI_ERROR(res)) {
+										UINT8 ar;
+										ERR_PRINT(L"Read error: %r\n", res);
+										ar = AskAR();
+										if (ar != 'R' && ar != 'r')
+											break;
+									}
+								} while (EFI_ERROR(res));
+								
+								if (EFI_ERROR(res))
+								{
+									OUT_PRINT(L"\r\nNo corrective action performed.");
+								}
 								else
 								{
-									if (AskConfirm("\r\nDecrypted data don't contain valid partition information. Proceeed anyway?", 1))
-										bPerformWrite = TRUE;
-								}
-								
-								if (bPerformWrite)
-								{
-									// Write original encrypted data
-									do {
-										res = io->WriteBlocks(io, io->Media->MediaId, pos, (UINTN)((CRYPT_BUF_SECTORS - remains) << 9), buf);
-										if (EFI_ERROR(res)) {
-											UINT8 ar;
-											ERR_PRINT(L"Write error: %r\n", res);
-											ar = AskAR();
-											if (ar != 'R' && ar != 'r')
-												break;
-										}
-									} while (EFI_ERROR(res));
+									UINT8* realEncryptedData = buf + ((CRYPT_BUF_SECTORS - remains) << 9);
+									BOOL bPerformWrite = FALSE;
+
+									// reverse faulty decryption
+									EncryptDataUnits(buf, (UINT64_STRUCT*)&pos, (UINT32)(remains), info);
 									
-									if (EFI_ERROR(res))
-									{
-										OUT_PRINT(L"\r\nNo corrective action performed.");
-									}
+									// decrypt the correct data
+									DecryptDataUnits(realEncryptedData, (UINT64_STRUCT*)&start, (UINT32)(remains), info);
+							
+									if (0xEB52904E54465320 == BE64 (*(uint64 *) realEncryptedData)) /* NTFS */
+										bPerformWrite = TRUE;
 									else
-									{										
-										// Write correctly decrypted data
+									{
+										if (AskConfirm("\r\nDecrypted data don't contain valid partition information. Proceeed anyway?", 1))
+											bPerformWrite = TRUE;
+									}
+									
+									if (bPerformWrite)
+									{
+										// Write original encrypted data
 										do {
-											res = io->WriteBlocks(io, io->Media->MediaId, start, (UINTN) (remains << 9), realEncryptedData);
+											res = io->WriteBlocks(io, io->Media->MediaId, pos, (UINTN)((CRYPT_BUF_SECTORS - remains) << 9), buf);
 											if (EFI_ERROR(res)) {
 												UINT8 ar;
 												ERR_PRINT(L"Write error: %r\n", res);
@@ -652,30 +669,48 @@ RangeCrypt(
 													break;
 											}
 										} while (EFI_ERROR(res));
-									
+										
 										if (EFI_ERROR(res))
 										{
-											OUT_PRINT(L"\r\nFailed to write decrypted data.");
+											OUT_PRINT(L"\r\nNo corrective action performed.");
 										}
 										else
-										{
-											OUT_PRINT(L"\r\nData recovered successfully!");											
+										{										
+											// Write correctly decrypted data
+											do {
+												res = io->WriteBlocks(io, io->Media->MediaId, start, (UINTN) (remains << 9), realEncryptedData);
+												if (EFI_ERROR(res)) {
+													UINT8 ar;
+													ERR_PRINT(L"Write error: %r\n", res);
+													ar = AskAR();
+													if (ar != 'R' && ar != 'r')
+														break;
+												}
+											} while (EFI_ERROR(res));
+										
+											if (EFI_ERROR(res))
+											{
+												OUT_PRINT(L"\r\nFailed to write decrypted data.");
+											}
+											else
+											{
+												OUT_PRINT(L"\r\nData recovered successfully!");											
+											}
 										}
 									}
-								}
-								else
-								{
-									OUT_PRINT(L"\r\nNo corrective action performed.");
-								}								
-							}							
+									else
+									{
+										OUT_PRINT(L"\r\nNo corrective action performed.");
+									}								
+								}							
+							}
+							else
+							{
+								OUT_PRINT(L"\n\rNo corrective action attempted.");
+							}
+							
 						}
-						else
-						{
-							OUT_PRINT(L"\n\rNo corrective action attempted.");
-						}
-						
-					}
-					
+					}					
 				}
 			}
 			 

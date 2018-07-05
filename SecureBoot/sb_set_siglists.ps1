@@ -40,6 +40,8 @@ Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\MicCorUE
 # Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\Acer_db_Manufacture_2015-06-17_SigList.bin -SignedFilePath siglists\Acer_db_Manufacture_2015-06-17_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
 # Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\Acer_LINPUS_2012-10-09_SigList.bin -SignedFilePath siglists\Acer_LINPUS_2012-10-09_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
 # Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\Acer_Quanta_NB4_2012-07-18_SigList.bin -SignedFilePath siglists\Acer_Quanta_NB4_2012-07-18_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+# Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\Acer_ABO_2010-12-31_SigList.bin -SignedFilePath siglists\Acer_ABO_2010-12-31_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+# Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\Acer_DisablePW_2012-12-31_SigList.bin -SignedFilePath siglists\Acer_DisablePW_2012-12-31_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
 
 ############### ASUS ###############
 # Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\ASUSTeK_MotherBoard_SW_Key_Certificate_2011-12_27_SigList.bin -SignedFilePath siglists\ASUSTeK_MotherBoard_SW_Key_Certificate_2011-12_27_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
@@ -60,5 +62,7 @@ Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\MicCorUE
 
 ############### Toshiba ###############
 # Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\Toshiba_Corporation_Utility_CA_2012-08-10_SigList.bin -SignedFilePath siglists\Toshiba_Corporation_Utility_CA_2012-08-10_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+# Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\Toshiba_QCI_2012-07-24_SigList.bin -SignedFilePath siglists\Toshiba_QCI_2012-07-24_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+# Set-SecureBootUEFI -Time 2016-08-08T00:00:00Z -ContentFilePath siglists\Toshiba_QCI_Shell_2012-07-24_SigList.bin -SignedFilePath siglists\Toshiba_QCI_Shell_2012-07-24_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
 
 

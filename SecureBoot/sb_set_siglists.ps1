@@ -61,6 +61,7 @@ Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath siglists\MicCorUE
 # Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath siglists\Lenovo_2JYoga910_2015-12-02_SigList.bin -SignedFilePath siglists\Lenovo_2JYoga910_2015-12-02_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
 # Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath siglists\Lenovo_LCFC_2015-05-29_SigList.bin -SignedFilePath siglists\Lenovo_LCFC_2015-05-29_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
 # Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath siglists\Lenovo_Mocca_2012-06-20_SigList.bin -SignedFilePath siglists\Lenovo_Mocca_2012-06-20_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+# Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath siglists\Lenovo_4MYoga720-15IKB_2016-11-09_SigList.bin -SignedFilePath siglists\Lenovo_4MYoga720-15IKB_2016-11-09_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
 
 
 ############### Toshiba ###############

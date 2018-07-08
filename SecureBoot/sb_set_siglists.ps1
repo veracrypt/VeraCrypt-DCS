@@ -51,6 +51,7 @@ Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath siglists\MicCorUE
 ############### HP ###############
 # Write-Host "Setting KEK-signed HP cert in db..."
 # Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath siglists\HP_UEFI_Secure_Boot_2013_DB_key_2013_08_23_SigList.bin -SignedFilePath siglists\HP_UEFI_Secure_Boot_2013_DB_key_2013_08_23_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+# Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath siglists\HP_UEFI_Secure_Boot_DB_2017_2017-01-20_SigList.bin -SignedFilePath siglists\HP_UEFI_Secure_Boot_DB_2017_2017-01-20_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
 
 ############### Lenovo ###############
 # Write-Host "Setting KEK-signed Lenovo certs in db..."

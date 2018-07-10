@@ -64,6 +64,9 @@ Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath siglists\MicCorUE
 # Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath siglists\Lenovo_Mocca_2012-06-20_SigList.bin -SignedFilePath siglists\Lenovo_Mocca_2012-06-20_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
 # Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath siglists\Lenovo_4MYoga720-15IKB_2016-11-09_SigList.bin -SignedFilePath siglists\Lenovo_4MYoga720-15IKB_2016-11-09_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
 
+############### MSI ###############
+# Write-Host "Setting KEK-signed MSI certs in db..."
+# Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath siglists\MSI_SHIP_OWN_CA_2012-06-09_SigList.bin -SignedFilePath siglists\MSI_SHIP_OWN_CA_2012-06-09_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
 
 ############### Toshiba ###############
 # Write-Host "Setting KEK-signed Toshiba certs in db..."

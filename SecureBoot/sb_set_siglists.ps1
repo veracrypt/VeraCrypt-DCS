@@ -49,6 +49,7 @@ Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath $scriptPath\sigli
 ############### DELL ###############
 # Write-Host "Setting KEK-signed Dell cert in db..."
 # Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath $scriptPath\siglists\Dell_UEFI_DB_2016_06_03_SigList.bin -SignedFilePath $scriptPath\siglists\Dell_UEFI_DB_2016_06_03_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+# Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath $scriptPath\siglists\Dell_CompalA31CSMB_2012-07-17_SigList.bin -SignedFilePath $scriptPath\siglists\Dell_CompalA31CSMB_2012-07-17_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
 
 ############### HP ###############
 # Write-Host "Setting KEK-signed HP cert in db..."

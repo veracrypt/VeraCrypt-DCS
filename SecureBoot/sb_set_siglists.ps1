@@ -75,6 +75,9 @@ Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath $scriptPath\sigli
 # Write-Host "Setting KEK-signed OriginPC certs in db..."
 # Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath $scriptPath\siglists\OriginPC_OWN_CA_2018-01-09_SigList.bin -SignedFilePath $scriptPath\siglists\OriginPC_OWN_CA_2018-01-09_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
 
+############### Panasonic ###############
+# Write-Host "Setting KEK-signed Panasonic certs in db..."
+# Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath $scriptPath\siglists\Panasonic_Corporation_db_CA_2013-03-31_SigList.bin -SignedFilePath $scriptPath\siglists\Panasonic_Corporation_db_CA_2013-03-31_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
 
 ############### Toshiba ###############
 # Write-Host "Setting KEK-signed Toshiba certs in db..."

@@ -39,6 +39,7 @@ Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath $scriptPath\sigli
 # Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath $scriptPath\siglists\Acer_Quanta_NB4_2012-07-18_SigList.bin -SignedFilePath $scriptPath\siglists\Acer_Quanta_NB4_2012-07-18_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
 # Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath $scriptPath\siglists\Acer_ABO_2010-12-31_SigList.bin -SignedFilePath $scriptPath\siglists\Acer_ABO_2010-12-31_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
 # Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath $scriptPath\siglists\Acer_DisablePW_2012-12-31_SigList.bin -SignedFilePath $scriptPath\siglists\Acer_DisablePW_2012-12-31_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+# Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath $scriptPath\siglists\Acer_Wistron_Secure_Flash_2013-05-17_SigList.bin -SignedFilePath $scriptPath\siglists\Acer_Wistron_Secure_Flash_2013-05-17_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
 
 ############### ASUS ###############
 # Write-Host "Setting KEK-signed ASUS certs in db..."

@@ -57,6 +57,11 @@ Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath $scriptPath\sigli
 # Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath $scriptPath\siglists\HP_UEFI_Secure_Boot_2013_DB_key_2013_08_23_SigList.bin -SignedFilePath $scriptPath\siglists\HP_UEFI_Secure_Boot_2013_DB_key_2013_08_23_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
 # Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath $scriptPath\siglists\HP_UEFI_Secure_Boot_DB_2017_2017-01-20_SigList.bin -SignedFilePath $scriptPath\siglists\HP_UEFI_Secure_Boot_DB_2017_2017-01-20_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
 
+############### Intel ###############
+# Write-Host "Setting KEK-signed Intel cert in db..."
+# Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath $scriptPath\siglists\Intel_CISD_FW_Update_2017-08-30_SigList.bin -SignedFilePath $scriptPath\siglists\Intel_CISD_FW_Update_2017-08-30_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true
+
+
 ############### Lenovo ###############
 # Write-Host "Setting KEK-signed Lenovo certs in db..."
 # Set-SecureBootUEFI -Time 2018-07-05T00:00:00Z -ContentFilePath $scriptPath\siglists\Lenovo_1T110-1415ISK-2016-02-17_SigList.bin -SignedFilePath $scriptPath\siglists\Lenovo_1T110-1415ISK-2016-02-17_SigList_Serialization.bin.p7 -Name db -AppendWrite:$true

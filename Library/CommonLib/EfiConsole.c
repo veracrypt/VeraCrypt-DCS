@@ -175,7 +175,7 @@ ConsoleShowTip(
 
 	// remove tip
 	for (i = 0; i < StrLen(tip); ++i) {
-		OUT_PRINT(L"\b \b", tip);
+		OUT_PRINT(L"\b \b");
 	}
 }
 

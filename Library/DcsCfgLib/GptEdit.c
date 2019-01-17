@@ -161,7 +161,7 @@ GptLoadFromDisk(
 		EFI_PARTITION_ENTRY *part;
 		part = &GptMainEntrys[i];
 		if (CompareMem(&gEfiPartTypeSystemPartGuid, &part->PartitionTypeGUID, sizeof(EFI_GUID)) == 0) {
-			CHAR16*   defExec = L"\\EFI\\Microsoft\\Boot\\Bootmgfw.efi";
+			CHAR16*   defExec = L"\\EFI\\Microsoft\\Boot\\bootmgfw_ms.vc";
 			DeExecParams = MEM_ALLOC(sizeof(*DeExecParams));
 			ZeroMem(DeExecParams, sizeof(*DeExecParams));
 			CopyMem(&DeExecParams->ExecPartGuid, &part->UniquePartitionGUID, sizeof(EFI_GUID));

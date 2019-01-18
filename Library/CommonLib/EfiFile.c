@@ -378,7 +378,8 @@ FileCopy(
 		res = EFI_BUFFER_TOO_SMALL;
 		goto copyerr;
 	}
-
+	
+	FileDelete (dstroot, dst);
 	res = FileOpen(dstroot, dst, &dstfile, EFI_FILE_MODE_CREATE | EFI_FILE_MODE_WRITE | EFI_FILE_MODE_READ, 0);
 	if (EFI_ERROR(res)) goto copyerr;
 

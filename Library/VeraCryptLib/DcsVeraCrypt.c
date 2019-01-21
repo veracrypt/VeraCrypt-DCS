@@ -186,7 +186,7 @@ VCAuthLoadConfig()
 	ConfigReadString("PartitionGuidOS", "", strTemp, MAX_MSG);
 	if (strTemp[0] != 0) {
 		EFI_GUID g;
-		if (AsciiStrToGuid(&g, strTemp)) {
+		if (DcsAsciiStrToGuid(&g, strTemp)) {
 			VCCONFIG_ALLOC(gPartitionGuidOS, sizeof(EFI_GUID));
 			if (gPartitionGuidOS != NULL) {
 				memcpy(gPartitionGuidOS, &g, sizeof(g));

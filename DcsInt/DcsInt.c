@@ -869,7 +869,7 @@ OnExit(
 	if (action == NULL) return retValue;
 	if (OnExitGetParam(action, "guid", &guidStr, NULL)) {
 		EFI_GUID tmp;
-		if (AsciiStrToGuid(&tmp, guidStr)) {
+		if (DcsAsciiStrToGuid(&tmp, guidStr)) {
 			guid = MEM_ALLOC(sizeof(EFI_GUID));
 			CopyMem(guid, &tmp, sizeof(EFI_GUID));
 		}

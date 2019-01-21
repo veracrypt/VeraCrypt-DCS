@@ -1601,7 +1601,7 @@ UsbScApdu(
 	EFI_STATUS res;
 	CE(InitUsb());
 	CE(UsbGetIO(gUSBHandles[UsbIndex], &UsbIo));
-	StrHexToBytes(cmd + sizeof(CCID_HEADER_OUT), &cmdLen, hexString);
+	DcsStrHexToBytes(cmd + sizeof(CCID_HEADER_OUT), &cmdLen, hexString);
 	CE(UsbScTransmit(UsbIo, cmd, cmdLen + sizeof(CCID_HEADER_OUT), resp, &respLen, &statusSc));
 	PrintBytes(resp, respLen);
 	return res;

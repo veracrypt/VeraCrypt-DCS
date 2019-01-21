@@ -165,6 +165,7 @@ DcsBootMain(
 	EfiSetVar(L"DcsExecPartGuid", NULL, &ImagePartGuid, sizeof(EFI_GUID), EFI_VARIABLE_BOOTSERVICE_ACCESS);
 	EfiSetVar(L"DcsExecCmd", NULL, gEfiExecCmdDefault, (StrLen(gEfiExecCmdDefault) + 1) * 2, EFI_VARIABLE_BOOTSERVICE_ACCESS);
 	// Authorize
+	gBS->SetWatchdogTimer(0, 0, 0, NULL);
 	res = EfiExec(NULL, L"\\EFI\\VeraCrypt\\DcsInt.dcs");
    if (EFI_ERROR(res)) {
       // ERR_PRINT(L"\nDcsInt.efi %r\n",res);

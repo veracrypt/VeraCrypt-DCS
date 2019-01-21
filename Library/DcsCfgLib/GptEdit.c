@@ -636,7 +636,7 @@ GptAskGUID(
 		ok = TRUE;
 	}
 	else {
-		ok = AsciiStrToGuid(&result, buf);
+		ok = DcsAsciiStrToGuid(&result, buf);
 		if (ok) {
 			CopyMem(guid, &result, sizeof(result));
 		}

@@ -412,7 +412,7 @@ AsciiHexToByte(
 	);
 
 BOOLEAN
-AsciiStrToGuid(
+DcsAsciiStrToGuid(
 	OUT EFI_GUID  *guid, 
 	IN  CHAR8     *str
 	);
@@ -425,7 +425,7 @@ AsciiHexToBytes(
 	);
 
 BOOLEAN
-StrHexToBytes(
+DcsStrHexToBytes(
 	OUT UINT8  *b,
 	IN  UINTN  *bytesLen,
 	IN  CHAR16  *str

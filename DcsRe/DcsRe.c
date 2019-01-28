@@ -28,6 +28,8 @@ https://opensource.org/licenses/LGPL-3.0
 #define ARCHdotEFI L"IA32.efi"
 #endif
 
+CONST CHAR8* g_szMsBootString = "bootmgfw.pdb";
+CONST CHAR16* g_szVcBootString = L"VeraCrypt";
 
 //////////////////////////////////////////////////////////////////////////
 // Menu
@@ -121,6 +123,45 @@ ActionDcsBoot(IN VOID* ctx) {
 	return EfiExec(gFileRootHandle, L"EFI\\VeraCrypt\\DcsBoot.efi");
 }
 
+EFI_STATUS
+ActionWindowsBoot(IN VOID* ctx) {
+	if (AskConfirm("If Windows is encrypted, Windows original loader will fail to start.\r\nDo you want to continue? [N]", 1))
+	{
+		SelectEfiVolume();
+		if (EfiBootVolume == NULL) return EFI_NOT_READY;
+		if (!EFI_ERROR(FileExist(EfiBootVolume, L"EFI\\Microsoft\\Boot\\bootmgfw_ms.vc")))
+			return EfiExec(gFSHandles[EfiBootVolumeIndex], L"EFI\\Microsoft\\Boot\\bootmgfw_ms.vc");
+		else
+		{
+			if (!EFI_ERROR(FileExist(EfiBootVolume, L"EFI\\Microsoft\\Boot\\bootmgfw.efi")))
+			{
+				/* check if it is Microsoft one */
+				UINT8*      fileData = NULL;
+				UINTN       fileSize = 0;
+				BOOLEAN		bFound = FALSE;
+				if (!EFI_ERROR(FileLoad(EfiBootVolume, L"EFI\\Microsoft\\Boot\\bootmgfw.efi", &fileData, &fileSize)))
+				{
+					if ((fileSize > 32768) && !EFI_ERROR(MemoryHasPattern(fileData, fileSize, g_szMsBootString, AsciiStrLen(g_szMsBootString))))
+					{
+						bFound = TRUE;
+					}
+				}
+				
+				MEM_FREE(fileData);
+				
+				if (bFound)
+					return EfiExec(gFSHandles[EfiBootVolumeIndex], L"EFI\\Microsoft\\Boot\\bootmgfw.efi");
+			}
+
+			ERR_PRINT(L"Could not find the original Windows loader\r\n");
+			
+			return EFI_NOT_READY;
+		}
+	}
+	else
+		return EFI_SUCCESS;
+}
+
 CHAR16* DcsBootBins[] = {
 	L"EFI\\VeraCrypt\\DcsBoot.efi",
 	L"EFI\\VeraCrypt\\DcsInt.dcs",
@@ -136,8 +177,6 @@ EFI_STATUS
 ActionRestoreDcsLoader(IN VOID* ctx) {
 	EFI_STATUS res = EFI_NOT_READY;
 	UINTN i;
-	CONST CHAR8* g_szMsBootString = "bootmgfw.pdb";
-	CONST CHAR16* g_szVcBootString = L"VeraCrypt";
 	SelectEfiVolume();
 	if (EfiBootVolume == NULL) return EFI_NOT_READY;
 	
@@ -326,6 +365,8 @@ DcsReMain(
 		item = DcsMenuAppend(item, L"Restore VeraCrypt loader binaries to system disk", 'r', ActionRestoreDcsLoader, NULL);
 		item = DcsMenuAppend(item, L"Boot VeraCrypt loader from rescue disk", 'v', ActionDcsBoot, NULL);
 	}
+	
+	item = DcsMenuAppend(item, L"Boot Original Windows Loader", 'o', ActionWindowsBoot, NULL);
 
 	if (!EFI_ERROR(FileExist(NULL, L"EFI\\Boot\\WinPE_boot" ARCHdotEFI))) {
 		item = DcsMenuAppend(item, L"Boot Windows PE from rescue disk", 'w', ActionBootWinPE, NULL);

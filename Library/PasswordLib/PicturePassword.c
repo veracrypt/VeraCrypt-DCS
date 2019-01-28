@@ -285,7 +285,6 @@ AskPictPwdInt(
 	CHAR8          pwdNewChar = 0;
 
 	if (gPasswordTimeout) {
-		UINTN          EventIndex = 0;
 		InputEvents[0] = gST->ConIn->WaitForKey;
 		eventsCount = 2;
 		if (gTouchPointer != NULL) {

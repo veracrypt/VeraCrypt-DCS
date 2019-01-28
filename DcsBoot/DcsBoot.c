@@ -183,6 +183,11 @@ DcsBootMain(
 	  {
 		  EfiCpuHalt();
 	  }
+	  else if (res == EFI_DCS_USER_CANCELED)
+	  {
+		  /* If user cancels password prompt, call original Windows loader */
+		  res = EfiExec(NULL, gEfiExecCmdDefault);
+	  }
       return res;
    }
 

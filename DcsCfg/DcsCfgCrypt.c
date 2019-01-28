@@ -167,7 +167,7 @@ ChangePassword(
 			ZeroMem(&confirmPassword, sizeof(newPassword));
 			VCAskPwd(AskPwdNew, &newPassword);
 			if (gAuthPwdCode == AskPwdRetCancel) {
-				return EFI_NOT_READY;
+				return EFI_DCS_USER_CANCELED;
 			}
 			if (gAuthPwdCode == AskPwdRetTimeout) {
 				return EFI_TIMEOUT;
@@ -175,7 +175,7 @@ ChangePassword(
 			VCAskPwd(AskPwdConfirm, &confirmPassword);
 			if (gAuthPwdCode == AskPwdRetCancel) {
 				MEM_BURN(&newPassword, sizeof(newPassword));
-				return EFI_NOT_READY;
+				return EFI_DCS_USER_CANCELED;
 			}
 			if (gAuthPwdCode == AskPwdRetTimeout) {
 				MEM_BURN(&newPassword, sizeof(newPassword));

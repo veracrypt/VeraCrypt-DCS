@@ -74,6 +74,7 @@ extern UINT8 gForcePasswordProgress;
 extern CHAR8* gOnExitFailed;
 extern CHAR8* gOnExitSuccess;
 extern CHAR8* gOnExitNotFound;
+extern CHAR8* gOnExitTimeout;
 
 void
 VCAuthAsk();

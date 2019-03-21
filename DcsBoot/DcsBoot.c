@@ -169,6 +169,20 @@ DcsBootMain(
 	res = EfiExec(NULL, L"\\EFI\\VeraCrypt\\DcsInt.dcs");
    if (EFI_ERROR(res)) {
       // ERR_PRINT(L"\nDcsInt.efi %r\n",res);
+	  if (res == EFI_DCS_SHUTDOWN_REQUESTED)
+	  {
+		res = EFI_SUCCESS;
+		gST->RuntimeServices->ResetSystem(EfiResetShutdown, EFI_SUCCESS, 0, NULL);
+	  }
+	  else if (res == EFI_DCS_REBOOT_REQUESTED)
+	  {
+		res = EFI_SUCCESS;
+		gST->RuntimeServices->ResetSystem(EfiResetCold, EFI_SUCCESS, 0, NULL);
+	  }
+	  else if (res == EFI_DCS_HALT_REQUESTED)
+	  {
+		  EfiCpuHalt();
+	  }
       return res;
    }
 

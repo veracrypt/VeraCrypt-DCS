@@ -565,10 +565,17 @@ SecRegionChangePwd() {
 		if (gAuthPwdCode == AskPwdRetCancel) {
 			return EFI_NOT_READY;
 		}
+		if (gAuthPwdCode == AskPwdRetTimeout) {
+			return EFI_TIMEOUT;
+		}
 		VCAskPwd(AskPwdConfirm, &confirmPassword);
 		if (gAuthPwdCode == AskPwdRetCancel) {
 			MEM_BURN(&newPassword, sizeof(newPassword));
 			return EFI_NOT_READY;
+		}
+		if (gAuthPwdCode == AskPwdRetTimeout) {
+			MEM_BURN(&newPassword, sizeof(newPassword));
+			return EFI_TIMEOUT;
 		}
 		if (newPassword.Length == confirmPassword.Length) {
 			if (CompareMem(newPassword.Text, confirmPassword.Text, confirmPassword.Length) == 0) {
@@ -676,6 +683,9 @@ SecRegionTryDecrypt()
 		VCAuthAsk();
 		if (gAuthPwdCode == AskPwdRetCancel) {
 			return EFI_NOT_READY;
+		}
+		if (gAuthPwdCode == AskPwdRetTimeout) {
+			return EFI_TIMEOUT;
 		}
 		OUT_PRINT(L"%a", gAuthStartMsg);
 		do {
@@ -793,6 +803,7 @@ SecRegionTryDecrypt()
 enum OnExitTypes{
 	OnExitAuthFaild = 1,
 	OnExitAuthNotFound,
+	OnExitAuthTimeout,
 	OnExitSuccess
 };
 
@@ -820,7 +831,7 @@ AsciiStrNStr(
 			++posp;
 			++pos2;
 		}
-		if (*pos2 == 0) return NULL;
+		if (*pos2 == 0 && *posp) return NULL;
 		if (*posp == 0) return pos1;
 		++pos1;
 	}
@@ -866,7 +877,14 @@ OnExit(
 	CHAR8* delayStr = NULL;
 	EFI_GUID *guid = NULL;
 	CHAR16  *fileStr  = NULL;
+	
+	if (EFI_ERROR(retValue))
+	{
+		CleanSensitiveData();
+	}
+	
 	if (action == NULL) return retValue;
+
 	if (OnExitGetParam(action, "guid", &guidStr, NULL)) {
 		EFI_GUID tmp;
 		if (DcsAsciiStrToGuid(&tmp, guidStr)) {
@@ -905,29 +923,43 @@ OnExit(
 	}
 
 	if (AsciiStrNStr(action, "halt") == action) {
-		EfiCpuHalt();
+		retValue = EFI_DCS_HALT_REQUESTED;
 	}
 
-	if (AsciiStrNStr(action, "exec") == action) {
+	else if (AsciiStrNStr(action, "shutdown") == action) {
+		retValue = EFI_DCS_SHUTDOWN_REQUESTED;
+	}
+	
+	else if (AsciiStrNStr(action, "reboot") == action) {
+		retValue = EFI_DCS_REBOOT_REQUESTED;
+	}
+
+	else if (AsciiStrNStr(action, "exec") == action) {
 		if (guid != NULL) {
 			EFI_STATUS res;
 			EFI_HANDLE h;
 			res = EfiFindPartByGUID(guid, &h);
 			if (EFI_ERROR(res)) {
 				ERR_PRINT(L"\nCan't find start partition\n");
-				EfiCpuHalt();
+				CleanSensitiveData();
+				retValue = EFI_DCS_HALT_REQUESTED;
+				goto exit;
 			}
 			// Try to exec
 			if (fileStr != NULL) {				
 				res = EfiExec(h, fileStr);
 				if (EFI_ERROR(res)) {
 					ERR_PRINT(L"\nStart %s - %r\n", fileStr, res);
-					EfiCpuHalt();
+					CleanSensitiveData();
+					retValue = EFI_DCS_HALT_REQUESTED;
+					goto exit;
 				}
 			}
 			else {
 				ERR_PRINT(L"\nNo EFI execution path specified. Halting!\n");
-				EfiCpuHalt();
+				CleanSensitiveData();
+				retValue = EFI_DCS_HALT_REQUESTED;
+				goto exit;
 			}
 		}		
 
@@ -937,7 +969,7 @@ OnExit(
 		goto exit;
 	}
 
-	if (AsciiStrNStr(action, "postexec") == action) {
+	else if (AsciiStrNStr(action, "postexec") == action) {
 		if (guid != NULL) {
 			EfiSetVar(L"DcsExecPartGuid", NULL, &guid, sizeof(EFI_GUID), EFI_VARIABLE_BOOTSERVICE_ACCESS);
 		}
@@ -947,7 +979,7 @@ OnExit(
 		goto exit;
 	}
 
-	if (AsciiStrStr(action, "exit") == action) {
+	else if (AsciiStrStr(action, "exit") == action) {
 		goto exit;
 	}
 
@@ -1151,7 +1183,10 @@ UefiMain(
 	gST->ConIn->Reset(gST->ConIn, FALSE);
 
 	if (EFI_ERROR(res)) {
-		return OnExit(gOnExitFailed, OnExitAuthFaild, res);
+		if (res == EFI_TIMEOUT)
+			return OnExit(gOnExitTimeout, OnExitAuthTimeout, res);
+		else
+			return OnExit(gOnExitFailed, OnExitAuthFaild, res);
 	}
 
 	res = PrepareBootParams(BootDriveSignature, SecRegionCryptInfo);

@@ -81,6 +81,7 @@ UINT8 gForcePasswordProgress = 1;
 CHAR8* gOnExitFailed = NULL;
 CHAR8* gOnExitSuccess = NULL;
 CHAR8* gOnExitNotFound = NULL;
+CHAR8* gOnExitTimeout = NULL;
 
 //////////////////////////////////////////////////////////////////////////
 // Authorize
@@ -147,7 +148,7 @@ VCAuthLoadConfig()
 	gPasswordProgress = (UINT8)ConfigReadInt("AuthorizeProgress", 1); // print "*"
 	gPasswordVisible = (UINT8)ConfigReadInt("AuthorizeVisible", 0);   // show chars
 	gPasswordShowMark = ConfigReadInt("AuthorizeMarkTouch", 1);       // show touch points
-	gPasswordTimeout = (UINT8)ConfigReadInt("PasswordTimeout", 0);   // If no password for <seconds> => <ESC>
+	gPasswordTimeout = (UINT8)ConfigReadInt("PasswordTimeout", 180);   // If no password for <seconds> => <ESC>
 
 	gDcsBootForce = ConfigReadInt("DcsBootForce", 1);                 // Ask password even if no USB marked found. 
 
@@ -181,6 +182,8 @@ VCAuthLoadConfig()
 	ConfigReadString("ActionNotFound", "Exit", gOnExitNotFound, MAX_MSG);
 	VCCONFIG_ALLOC(gOnExitFailed, MAX_MSG);
 	ConfigReadString("ActionFailed", "Exit", gOnExitFailed, MAX_MSG);
+	VCCONFIG_ALLOC(gOnExitTimeout, MAX_MSG);
+	ConfigReadString("ActionTimeout", "Shutdown", gOnExitTimeout, MAX_MSG);
 
 	strTemp = MEM_ALLOC(MAX_MSG);
 	ConfigReadString("PartitionGuidOS", "", strTemp, MAX_MSG);
@@ -321,7 +324,7 @@ VCAskPwd(
 						ERR_PRINT(L"%r\n", res);
 					}
 				} while (gCfgMenuContinue);
-				if (gAuthPwdCode == AskPwdRetCancel) {
+				if ((gAuthPwdCode == AskPwdRetCancel) || (gAuthPwdCode == AskPwdRetTimeout)) {
 					return;
 				}
 			}
@@ -355,7 +358,7 @@ VCAskPwd(
 				AskConsolePwdInt(&vcPwd->Length, vcPwd->Text, &gAuthPwdCode, sizeof(vcPwd->Text), gPasswordVisible);
 			}
 
-			if (gAuthPwdCode == AskPwdRetCancel) {
+			if ((gAuthPwdCode == AskPwdRetCancel) || (gAuthPwdCode == AskPwdRetTimeout)) {
 				return;
 			}
 		}
@@ -396,7 +399,7 @@ VCAuthAsk()
 {
 	VCAskPwd(AskPwdLogin, &gAuthPassword);
 
-	if (gAuthPwdCode == AskPwdRetCancel) {
+	if ((gAuthPwdCode == AskPwdRetCancel) || (gAuthPwdCode == AskPwdRetTimeout)) {
 		return;
 	}
 

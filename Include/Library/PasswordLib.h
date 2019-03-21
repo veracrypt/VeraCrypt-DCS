@@ -43,7 +43,8 @@ enum AskPwdType {
 enum AskPwdRetCode {
 	AskPwdRetCancel = 0,
 	AskPwdRetLogin  = 1,
-	AskPwdRetChange
+	AskPwdRetChange = 2,
+	AskPwdRetTimeout
 };
 
 VOID

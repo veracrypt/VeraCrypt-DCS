@@ -169,10 +169,17 @@ ChangePassword(
 			if (gAuthPwdCode == AskPwdRetCancel) {
 				return EFI_NOT_READY;
 			}
+			if (gAuthPwdCode == AskPwdRetTimeout) {
+				return EFI_TIMEOUT;
+			}
 			VCAskPwd(AskPwdConfirm, &confirmPassword);
 			if (gAuthPwdCode == AskPwdRetCancel) {
 				MEM_BURN(&newPassword, sizeof(newPassword));
 				return EFI_NOT_READY;
+			}
+			if (gAuthPwdCode == AskPwdRetTimeout) {
+				MEM_BURN(&newPassword, sizeof(newPassword));
+				return EFI_TIMEOUT;
 			}
 			if (newPassword.Length == confirmPassword.Length) {
 				if (CompareMem(newPassword.Text, confirmPassword.Text, confirmPassword.Length) == 0) {

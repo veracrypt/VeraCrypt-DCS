@@ -36,12 +36,12 @@ AskConsolePwdInt(
 		UINTN          EventIndex = 0;
 		InputEvents[0] = gST->ConIn->WaitForKey;
 		gBS->CreateEvent(EVT_TIMER, 0, (EFI_EVENT_NOTIFY)NULL, NULL, &InputEvents[1]);
-		gBS->SetTimer(InputEvents[1], TimerPeriodic, 10000000 * gPasswordTimeout);
+		gBS->SetTimer(InputEvents[1], TimerRelative, 10000000 * gPasswordTimeout);
 		gBS->WaitForEvent(2, InputEvents, &EventIndex);
-		gPasswordTimeout = 0;
+		gBS->SetTimer(InputEvents[1], TimerCancel, 0);
 		gBS->CloseEvent(InputEvents[1]);
 		if (EventIndex == 1) {
-			*retCode = AskPwdRetCancel;
+			*retCode = AskPwdRetTimeout;
 			return ;
 		}
 	}

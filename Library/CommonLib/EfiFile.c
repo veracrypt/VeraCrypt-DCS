@@ -42,6 +42,22 @@ InitFS() {
 }
 
 EFI_STATUS
+DirectoryCreate(
+   IN    EFI_FILE*   root,
+   IN    CHAR16*     name
+   )
+{
+   EFI_FILE*      file;
+   EFI_STATUS     res;
+   if (!name) { return EFI_INVALID_PARAMETER; }
+
+   res = FileOpen(root, name, &file, EFI_FILE_MODE_READ | EFI_FILE_MODE_CREATE | EFI_FILE_MODE_WRITE, EFI_FILE_DIRECTORY);
+   if (EFI_ERROR(res)) return res;
+   FileClose(file);
+   return res;
+}
+
+EFI_STATUS
 FileOpenRoot(
    IN    EFI_HANDLE rootHandle,
    OUT   EFI_FILE** rootFile)
@@ -131,12 +147,14 @@ EFI_STATUS
 FileWrite(
    IN       EFI_FILE*   f, 
    IN       VOID*       data,
-   IN OUT   UINTN*      bytes, 
+   IN OUT   UINTN      bytes, 
    IN OUT   UINT64*     position) 
 {
    EFI_STATUS res;
+   UINTN remaining;
+   UINT8* pbData = (UINT8*) data;
 
-   if (!f || !data || !bytes) { 
+   if (!f || !data) { 
       return EFI_INVALID_PARAMETER; 
    }
    if (position != NULL) {
@@ -145,7 +163,20 @@ FileWrite(
          return res;
       }
    }
-   res = f->Write(f, bytes, data);
+   remaining = bytes;
+   res = f->Write(f, &bytes, pbData);
+   if (!EFI_ERROR(res)) {
+	   remaining -= bytes;
+	   pbData += bytes;
+	   bytes = remaining;
+	   while ((remaining > 0) && !EFI_ERROR(res))
+	   {
+		   res = f->Write(f, &bytes, pbData);
+		   remaining -= bytes;
+		   pbData += bytes;
+		   bytes = remaining;
+ 	   }
+   }
    if (position != NULL) {
       f->GetPosition(f, position);
    }
@@ -265,12 +296,11 @@ FileSave(
 {
    EFI_FILE*      file;
    EFI_STATUS     res;
-   UINTN          sz = size;
    if (!data || !name) { return EFI_INVALID_PARAMETER; }
    FileDelete(root, name);
    res = FileOpen(root, name, &file, EFI_FILE_MODE_READ | EFI_FILE_MODE_CREATE | EFI_FILE_MODE_WRITE, 0);
    if (EFI_ERROR(res)) return res;
-   res = FileWrite(file, data, &sz, NULL);
+   res = FileWrite(file, data, size, NULL);
    FileClose(file);
    return res;
 }
@@ -356,7 +386,7 @@ FileCopy(
 		datasz = remains > bufSz ? bufSz : remains;
 		res =FileRead(srcfile, data, &datasz, NULL);
 		if (EFI_ERROR(res)) goto copyerr;
-		res = FileWrite(dstfile, data, &datasz, NULL);
+		res = FileWrite(dstfile, data, datasz, NULL);
 		if (EFI_ERROR(res)) goto copyerr;
 		remains -= datasz;
 	} while (remains > 0);

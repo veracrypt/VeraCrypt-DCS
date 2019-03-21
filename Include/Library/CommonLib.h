@@ -80,6 +80,13 @@ PrepareMemory(
    IN UINTN    len,
    OUT VOID**  mem
    );
+   
+EFI_STATUS
+MemoryHasPattern (
+	CONST VOID* buffer,
+	UINTN bufferLen,
+	CONST VOID* pattern,
+	UINTN patternLen);
 
 //////////////////////////////////////////////////////////////////////////
 // handles
@@ -651,6 +658,12 @@ EFI_STATUS
 InitFS();
 
 EFI_STATUS
+DirectoryCreate(
+   IN    EFI_FILE*   root,
+   IN    CHAR16*     name
+   );
+
+EFI_STATUS
 FileOpenRoot(
    IN    EFI_HANDLE rootHandle,
    OUT   EFI_FILE** rootFile);
@@ -685,7 +698,7 @@ EFI_STATUS
 FileWrite(
    IN       EFI_FILE*   f,
    IN       VOID*       data,
-   IN OUT   UINTN*      bytes,
+   IN OUT   UINTN       bytes,
    IN OUT   UINT64*     position);
 
 UINTN

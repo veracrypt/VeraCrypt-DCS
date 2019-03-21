@@ -289,13 +289,13 @@ DeListSaveToFile() {
 				UINTN pad;
 				len = (UINTN)DeList->DE[i].Length;
 				pad = (((len + 511) >> 9) << 9) - len;
-				res = FileWrite(file, DeData[i], &len, NULL);
+				res = FileWrite(file, DeData[i], len, NULL);
 				if (EFI_ERROR(res)) {
 					ERR_PRINT(L"Write: %r\n", res);
 					goto error;
 				}
 				if (pad > 0) {
-					res = FileWrite(file, pad512buf, &pad, NULL);
+					res = FileWrite(file, pad512buf, pad, NULL);
 					if (EFI_ERROR(res)) {
 						ERR_PRINT(L"Write: %r\n", res);
 						goto error;

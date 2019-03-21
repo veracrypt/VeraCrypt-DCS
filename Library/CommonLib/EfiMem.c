@@ -72,3 +72,30 @@ PrepareMemory(
    *mem = buf;
    return status;
 }
+
+//////////////////////////////////////////////////////////////////////////
+// Memory misc
+//////////////////////////////////////////////////////////////////////////
+EFI_STATUS MemoryHasPattern (
+	CONST VOID* buffer,
+	UINTN bufferLen,
+	CONST VOID* pattern,
+	UINTN patternLen)
+{
+	EFI_STATUS status = EFI_NOT_FOUND;
+	if (patternLen <= bufferLen)
+	{
+		UINTN i;
+		CONST UINT8* memPtr = (CONST UINT8*) buffer;
+		for (i = 0; i <= (bufferLen - patternLen); ++i)
+		{
+			if (CompareMem (&memPtr[i], pattern, patternLen) == 0)
+			{
+				status = EFI_SUCCESS;
+				break;
+			}
+		}
+	}
+
+	return status;
+}

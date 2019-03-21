@@ -21,8 +21,10 @@ https://opensource.org/licenses/LGPL-3.0
 #include "common/Tcdefs.h"
 
 #ifdef _M_X64
+#define ARCHdot L"x64."
 #define ARCHdotEFI L"x64.efi"
 #else
+#define ARCHdot L"IA32."
 #define ARCHdotEFI L"IA32.efi"
 #endif
 
@@ -48,48 +50,56 @@ SelectEfiVolume()
 	EFI_FILE     *file;
 	EFI_FILE     **efiVolumes;
 	UINTN        efiVolumesCount = 0;
-	EFI_HANDLE   startHandle;
 	if (EfiBootVolume != NULL) return;
-	res = EfiGetStartDevice(&startHandle);
-	if (EFI_ERROR(res)) {
-		ERR_PRINT(L"GetStartDevice %r", res);
-		return;
-	}
+
 	efiVolumes = MEM_ALLOC(sizeof(EFI_FILE*) * gFSCount);
 	for (i = 0; i < gFSCount; ++i) {
+		if (gFSHandles[i] == gFileRootHandle)
+			continue;
 		res = FileOpenRoot(gFSHandles[i], &file);
-		if(EFI_ERROR(res)) continue;
-		if (!EFI_ERROR(FileExist(file, L"EFI\\Boot\\boot" ARCHdotEFI))) {
+		if(EFI_ERROR(res)) { ERR_PRINT(L"FileOpenRoot %r\n", res); continue;}
+		if (	!EFI_ERROR(FileExist(file, L"EFI\\Boot\\boot" ARCHdotEFI))
+			||	!EFI_ERROR(FileExist(file, L"EFI\\Microsoft\\Boot\\bootmgfw.efi"))
+			||	!EFI_ERROR(FileExist(file, L"EFI\\Microsoft\\Boot\\bootmgfw_ms.vc"))
+			) 
+		{
 			efiVolumesCount++;
 			efiVolumes[i] = file;
-			if (gFSHandles[i] != startHandle) {
-				EfiBootVolumeIndex = i;
-				EfiBootVolume = file;
-			}
+			EfiBootVolumeIndex = i;
+			EfiBootVolume = file;
 		}	else {
 			FileClose(file);
 		}
 	}
-
-	for (i = 0; i < gFSCount; ++i) {
-		OUT_PRINT(L"%H%d)%N ", i);
-		if (efiVolumes[i] != NULL) {
-			if (gFSHandles[i] == startHandle) {
-				OUT_PRINT(L"%V [Boot Rescue] %N");
-			}
-			else {
+	
+	if (efiVolumesCount > 1)
+	{
+		for (i = 0; i < gFSCount; ++i) {
+			OUT_PRINT(L"%H%d)%N ", i);
+			if (efiVolumes[i] != NULL) {
 				OUT_PRINT(L"%V [Boot] %N");
 			}
+			EfiPrintDevicePath(gFSHandles[i]);
+			OUT_PRINT(L"\n");
 		}
-		EfiPrintDevicePath(gFSHandles[i]);
-		OUT_PRINT(L"\n");
-	}
 
-	do {
-		EfiBootVolumeIndex = AskUINTN("Select EFI boot volume:", EfiBootVolumeIndex);
-		if (EfiBootVolumeIndex >= gFSCount) continue;
-		EfiBootVolume = efiVolumes[EfiBootVolumeIndex];
-	} while (EfiBootVolume == NULL);
+		do {
+			EfiBootVolumeIndex = AskUINTN("Select EFI boot volume:", EfiBootVolumeIndex);
+			if (EfiBootVolumeIndex >= gFSCount) continue;
+			EfiBootVolume = efiVolumes[EfiBootVolumeIndex];
+		} while (EfiBootVolume == NULL);
+		
+		/* free unused descriptors */
+		for (i = 0; i < gFSCount; ++i) {
+			if (efiVolumes[i] != NULL && efiVolumes[i] != EfiBootVolume) {
+				FileClose(efiVolumes[i]);
+			}
+		}
+
+		OUT_PRINT (L"\n");
+	}
+	
+	
 	MEM_FREE(efiVolumes);
 }
 
@@ -108,9 +118,7 @@ ActionShell(IN VOID* ctx) {
 
 EFI_STATUS
 ActionDcsBoot(IN VOID* ctx) {
-	SelectEfiVolume();
-	if (EfiBootVolume == NULL) return EFI_NOT_READY;
-	return EfiExec(gFSHandles[EfiBootVolumeIndex], L"EFI\\VeraCrypt\\DcsBoot.efi");
+	return EfiExec(gFileRootHandle, L"EFI\\VeraCrypt\\DcsBoot.efi");
 }
 
 CHAR16* DcsBootBins[] = {
@@ -128,13 +136,77 @@ EFI_STATUS
 ActionRestoreDcsLoader(IN VOID* ctx) {
 	EFI_STATUS res = EFI_NOT_READY;
 	UINTN i;
+	CONST CHAR8* g_szMsBootString = "bootmgfw.pdb";
+	CONST CHAR16* g_szVcBootString = L"VeraCrypt";
 	SelectEfiVolume();
 	if (EfiBootVolume == NULL) return EFI_NOT_READY;
+	
+	DirectoryCreate (EfiBootVolume, L"EFI\\VeraCrypt");
+	
 	for (i = 0; i < sizeof(DcsBootBins) / sizeof(CHAR16*); ++i) {
 		res = FileCopy(NULL, DcsBootBins[i], EfiBootVolume, DcsBootBins[i], 1024 * 1024);
 		if (EFI_ERROR(res)) return res;
 	}
-	return res;
+	/* restore standard boot file */
+	if (!EFI_ERROR(FileExist(EfiBootVolume, L"EFI\\Boot\\boot" ARCHdotEFI)))
+	{
+		/* check if it is Microsoft one or ours */
+		UINT8*      fileData = NULL;
+		UINTN       fileSize = 0;
+		res = EFI_SUCCESS;
+		if (!EFI_ERROR(FileLoad(EfiBootVolume, L"EFI\\Boot\\boot" ARCHdotEFI, &fileData, &fileSize)))
+		{
+			if ((fileSize > 32768) && !EFI_ERROR(MemoryHasPattern(fileData, fileSize, g_szMsBootString, AsciiStrLen(g_szMsBootString))))
+			{
+				res = FileCopy(EfiBootVolume, L"EFI\\Boot\\boot" ARCHdotEFI, EfiBootVolume, L"\\EFI\\Boot\\original_boot" ARCHdot L"vc_backup", 1024 * 1024);
+				if (!EFI_ERROR(res))
+					res = FileCopy(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi", EfiBootVolume, L"EFI\\Boot\\boot" ARCHdotEFI, 1024 * 1024);				
+			}
+			else if ((fileSize <= 32768) && !EFI_ERROR(MemoryHasPattern(fileData, fileSize, g_szVcBootString, StrLen (g_szVcBootString) * 2)))
+			{
+				res = FileCopy(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi", EfiBootVolume, L"EFI\\Boot\\boot" ARCHdotEFI, 1024 * 1024);
+			}
+			MEM_FREE(fileData);
+			
+			if (EFI_ERROR(res)) return res;
+		}		
+	}
+	else if (!EFI_ERROR(FileExist(EfiBootVolume, L"\\EFI\\Boot\\original_boot" ARCHdot L"vc_backup")))
+	{
+		res = FileCopy(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi", EfiBootVolume, L"EFI\\Boot\\boot" ARCHdotEFI, 1024 * 1024);
+		if (EFI_ERROR(res)) return res;
+	}
+	
+	if (!EFI_ERROR(FileExist(EfiBootVolume, L"EFI\\Microsoft\\Boot\\bootmgfw.efi")))
+	{
+		/* check if it is Microsoft one */
+		UINT8*      fileData = NULL;
+		UINTN       fileSize = 0;
+		res = EFI_SUCCESS;
+		if (!EFI_ERROR(FileLoad(EfiBootVolume, L"EFI\\Microsoft\\Boot\\bootmgfw.efi", &fileData, &fileSize)))
+		{
+			if ((fileSize > 32768) && !EFI_ERROR(MemoryHasPattern(fileData, fileSize, g_szMsBootString, AsciiStrLen(g_szMsBootString))))
+			{
+				res = FileCopy(EfiBootVolume, L"EFI\\Microsoft\\Boot\\bootmgfw.efi", EfiBootVolume, L"\\EFI\\Microsoft\\Boot\\bootmgfw_ms.vc", 1024 * 1024);				
+			}
+
+			MEM_FREE(fileData);
+			
+			if (EFI_ERROR(res)) return res;
+		}
+
+		res = FileCopy(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi", EfiBootVolume, L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi", 1024 * 1024);
+		if (EFI_ERROR(res)) return res;
+	}
+	else if (!EFI_ERROR(FileExist(EfiBootVolume, L"\\EFI\\Microsoft\\Boot\\bootmgfw_ms.vc")))		
+	{
+		res = FileCopy(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi", EfiBootVolume, L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi", 1024 * 1024);
+		if (EFI_ERROR(res)) return res;
+	}
+	
+	OUT_PRINT (L"\nVeraCrypt Loader restored to disk successfully\n\n");
+	
+	return EFI_SUCCESS;
 }
 
 CHAR16* sDcsBootEfi = L"EFI\\VeraCrypt\\DcsBoot.efi";

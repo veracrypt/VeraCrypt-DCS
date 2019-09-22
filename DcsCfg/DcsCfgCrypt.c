@@ -1770,9 +1770,9 @@ SecRigionDump(
 	EFI_BLOCK_IO_PROTOCOL*  bio;
 	DCS_AUTH_DATA_MARK*     adm = NULL;
 	UINT32                  crc;
-	UINT8*                  SecRegionData = NULL;
-	UINTN                   SecRegionSize = 0;
-	UINTN                   SecRegionOffset = 0;
+	UINT8*                  SecRegionDumpData = NULL;
+	UINTN                   SecRegionDumpSize = 0;
+	UINTN                   SecRegionDumpOffset = 0;
 	UINTN                   saveSize = 0;
 	UINTN                   idx = 0;
 	CHAR16                  name[128];
@@ -1797,36 +1797,36 @@ SecRigionDump(
 		res = EFI_INVALID_PARAMETER;
 	}
 
-	SecRegionSize = adm->AuthDataSize * 128 * 1024;
-	SecRegionData = MEM_ALLOC(SecRegionSize);
-	if (SecRegionData == NULL) {
+	SecRegionDumpSize = adm->AuthDataSize * 128 * 1024;
+	SecRegionDumpData = MEM_ALLOC(SecRegionDumpSize);
+	if (SecRegionDumpData == NULL) {
 		res = EFI_BUFFER_TOO_SMALL;
 		goto err;
 	}
-	CE(bio->ReadBlocks(bio, bio->Media->MediaId, 62, SecRegionSize, SecRegionData));
+	CE(bio->ReadBlocks(bio, bio->Media->MediaId, 62, SecRegionDumpSize, SecRegionDumpData));
 
 	do {
 		// EFI tables?
-		if (TablesVerify(SecRegionSize - SecRegionOffset, SecRegionData + SecRegionOffset)) {
-			EFI_TABLE_HEADER *mhdr = (EFI_TABLE_HEADER *)(SecRegionData + SecRegionOffset);
+		if (TablesVerify(SecRegionDumpSize - SecRegionDumpOffset, SecRegionDumpData + SecRegionDumpOffset)) {
+			EFI_TABLE_HEADER *mhdr = (EFI_TABLE_HEADER *)(SecRegionDumpData + SecRegionDumpOffset);
 			UINTN tblZones = (mhdr->HeaderSize + 1024 * 128 - 1) / (1024 * 128);
 			saveSize = tblZones * 1024 * 128;
 		}		else {
 			saveSize = 1024 * 128;
 		}
 		UnicodeSPrint(name, sizeof(name), L"%s%d", prefix, idx);
-		CE(FileSave(NULL, name, SecRegionData + SecRegionOffset, saveSize));
+		CE(FileSave(NULL, name, SecRegionDumpData + SecRegionDumpOffset, saveSize));
 		OUT_PRINT(L"%s saved\n", name);
 		idx += saveSize / (1024 * 128);
-		SecRegionOffset += saveSize;
-	} while (SecRegionOffset < SecRegionSize);
+		SecRegionDumpOffset += saveSize;
+	} while (SecRegionDumpOffset < SecRegionDumpSize);
 
 err:
 	if (EFI_ERROR(res)) {
 		ERR_PRINT(L"%r\n", res);
 	}
 	MEM_FREE(adm);
-	MEM_FREE(SecRegionData);
+	MEM_FREE(SecRegionDumpData);
 	return res;
 }
 

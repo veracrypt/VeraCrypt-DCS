@@ -417,7 +417,7 @@ VCAuthAsk()
 	if (gAuthHashRqt) {
 		do {
 			gAuthHash = AskInt(gAuthHashMsg, gPasswordVisible);
-		} while (gAuthHash < 0 || gAuthHash > 4);
+		} while (gAuthHash < 0 || gAuthHash > 5);
 	}
 }
 

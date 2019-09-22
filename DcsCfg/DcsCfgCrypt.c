@@ -1664,7 +1664,7 @@ UpdateDcsBoot() {
 UINTN gSecRigonCount = 0;
 
 EFI_STATUS
-SecRigionMark() 
+SecRegionMark() 
 {
 	UINT32      crc;
 	EFI_STATUS  res;
@@ -1707,7 +1707,7 @@ SecRigionMark()
 }
 
 EFI_STATUS
-SecRigionWipe()
+SecRegionWipe()
 {
 	EFI_STATUS  res;
 	CHAR8*      buf;
@@ -1761,7 +1761,7 @@ error:
 }
 
 EFI_STATUS
-SecRigionDump(
+SecRegionDump(
 	IN EFI_HANDLE   hBio,
 	IN CHAR16       *prefix
 	)
@@ -1832,7 +1832,7 @@ err:
 
 
 EFI_STATUS
-SecRigionAdd(
+SecRegionAdd(
 	IN UINTN       regIdx
 )
 {

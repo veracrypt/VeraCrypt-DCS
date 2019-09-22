@@ -89,18 +89,18 @@ OuterInit();
 extern UINTN gSecRigonCount;
 
 EFI_STATUS
-SecRigionMark();
+SecRegionMark();
 
 EFI_STATUS
-SecRigionWipe();
+SecRegionWipe();
 
 EFI_STATUS
-SecRigionAdd(
+SecRegionAdd(
 	IN UINTN       regIdx
 	);
 
 EFI_STATUS
-SecRigionDump(
+SecRegionDump(
 	IN EFI_HANDLE   hBio,
 	IN CHAR16       *prefix
 	);

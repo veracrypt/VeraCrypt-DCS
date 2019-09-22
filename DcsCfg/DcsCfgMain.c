@@ -707,7 +707,7 @@ DcsCfgMain(
 			CONST CHAR16* opt = NULL;
 			opt = ShellCommandLineGetValue(Package, OPT_SECREGION_MARK);
 			gSecRigonCount = StrDecimalToUintn(opt);
-			SecRigionMark();
+			SecRegionMark();
 		}	else {
 			ERR_PRINT(L"Select disk and security region count");
 			return EFI_INVALID_PARAMETER;
@@ -719,7 +719,7 @@ DcsCfgMain(
 			CONST CHAR16* opt = NULL;
 			opt = ShellCommandLineGetValue(Package, OPT_SECREGION_WIPE);
 			gSecRigonCount = StrDecimalToUintn(opt);
-			SecRigionWipe();
+			SecRegionWipe();
 		}
 		else {
 			ERR_PRINT(L"Select disk and security region count");
@@ -734,7 +734,7 @@ DcsCfgMain(
 			UINTN secRegionIdx;
 			opt = ShellCommandLineGetValue(Package, OPT_SECREGION_ADD);
 			secRegionIdx = StrDecimalToUintn(opt);
-			SecRigionAdd(secRegionIdx);
+			SecRegionAdd(secRegionIdx);
 		}
 		else {
 			ERR_PRINT(L"Select disk and GPT file");
@@ -746,7 +746,7 @@ DcsCfgMain(
 		if (ShellCommandLineGetFlag(Package, OPT_DISK_START)) {
 			CONST CHAR16* opt = NULL;
 			opt = ShellCommandLineGetValue(Package, OPT_SECREGION_DUMP);
-			SecRigionDump(gBIOHandles[BioIndexStart], (CHAR16*)opt);
+			SecRegionDump(gBIOHandles[BioIndexStart], (CHAR16*)opt);
 		}	else {
 			ERR_PRINT(L"Select disk");
 			return EFI_INVALID_PARAMETER;

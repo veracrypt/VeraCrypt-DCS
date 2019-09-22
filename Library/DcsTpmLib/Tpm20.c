@@ -539,7 +539,7 @@ DcsTpm2NvRead(
 {
 	EFI_STATUS                res;
 	TPMI_SH_AUTH_SESSION      SessionHandle = 0;
-	UINT32                    PcrMask,
+	UINT32                    PcrMask;
 
 	CE(DcsTpm2NVReadPcrMask(&PcrMask));
 

@@ -29,6 +29,7 @@ CHAR16            *gEfiExecCmdDefault = L"\\EFI\\Microsoft\\Boot\\Bootmgfw_ms.vc
 CHAR16            *gEfiExecCmdMS = L"\\EFI\\Microsoft\\Boot\\Bootmgfw.efi";
 CHAR16            *gEfiExecCmd = NULL;
 CHAR8             gDoExecCmdMsg[256];
+CONST CHAR8* 	  g_szMsBootString = "bootmgfw.pdb";
 
 EFI_STATUS
 DoExecCmd() 
@@ -56,6 +57,39 @@ DoExecCmd()
 		AsciiSPrint(gDoExecCmdMsg, sizeof(gDoExecCmdMsg), "\nCan't find start partition %g\n", gEfiExecPartGuid);
 	}
 	return res;
+}
+
+EFI_STATUS
+ExecMSWindowsLoader() {
+	
+	if (!EFI_ERROR(FileExist(NULL, gEfiExecCmdDefault)))
+		return EfiExec(NULL, gEfiExecCmdDefault);
+	else
+	{
+		if (!EFI_ERROR(FileExist(NULL, gEfiExecCmdMS)))
+		{
+			/* check if it is Microsoft one */
+			UINT8*      fileData = NULL;
+			UINTN       fileSize = 0;
+			BOOLEAN		bFound = FALSE;
+			if (!EFI_ERROR(FileLoad(NULL, gEfiExecCmdMS, &fileData, &fileSize)))
+			{
+				if ((fileSize > 32768) && !EFI_ERROR(MemoryHasPattern(fileData, fileSize, g_szMsBootString, AsciiStrLen(g_szMsBootString))))
+				{
+					bFound = TRUE;
+				}
+			}
+			
+			MEM_FREE(fileData);
+			
+			if (bFound)
+				return EfiExec(NULL, gEfiExecCmdMS);
+		}
+
+		ERR_PRINT(L"Could not find the original Windows loader\r\n");
+		
+		return EFI_NOT_READY;
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -186,7 +220,7 @@ DcsBootMain(
 	  else if (res == EFI_DCS_USER_CANCELED)
 	  {
 		  /* If user cancels password prompt, call original Windows loader */
-		  res = EfiExec(NULL, gEfiExecCmdDefault);
+		  res = ExecMSWindowsLoader ();
 	  }
       return res;
    }

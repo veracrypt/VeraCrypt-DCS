@@ -663,6 +663,12 @@ DirectoryCreate(
    IN    EFI_FILE*   root,
    IN    CHAR16*     name
    );
+   
+EFI_STATUS
+DirectoryExists(
+   IN    EFI_FILE*   root,
+   IN    CHAR16*     name
+   );
 
 EFI_STATUS
 FileOpenRoot(

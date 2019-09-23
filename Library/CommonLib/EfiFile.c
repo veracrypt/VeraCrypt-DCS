@@ -58,6 +58,22 @@ DirectoryCreate(
 }
 
 EFI_STATUS
+DirectoryExists(
+   IN    EFI_FILE*   root,
+   IN    CHAR16*     name
+   )
+{
+   EFI_FILE*      file;
+   EFI_STATUS     res;
+   if (!name) { return EFI_INVALID_PARAMETER; }
+
+   res = FileOpen(root, name, &file, EFI_FILE_MODE_READ, EFI_FILE_DIRECTORY);
+   if (EFI_ERROR(res)) return res;
+   FileClose(file);
+   return EFI_SUCCESS;
+}
+
+EFI_STATUS
 FileOpenRoot(
    IN    EFI_HANDLE rootHandle,
    OUT   EFI_FILE** rootFile)

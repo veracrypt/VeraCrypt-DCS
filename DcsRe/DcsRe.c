@@ -349,56 +349,67 @@ DcsReMain(
       ERR_PRINT(L"InitFS %r\n", res);
 		return res;
    }
+   
+	if (!EFI_ERROR(DirectoryExists(NULL, L"EFI\\VeraCrypt")))
+	{
+		item = DcsMenuAppend(NULL, L"Decrypt OS", 'd', ActionDecryptOS, NULL);
+		gMenu = item;
+		item = DcsMenuAppend(item, L"Restore VeraCrypt loader to boot menu", 'm', ActionRestoreDcsBootMenu, NULL);
+		item = DcsMenuAppend(item, L"Remove VeraCrypt loader from boot menu", 'z' , ActionRemoveDcsBootMenu, NULL);
 
-	item = DcsMenuAppend(NULL, L"Decrypt OS", 'd', ActionDecryptOS, NULL);
-	gMenu = item;
-	item = DcsMenuAppend(item, L"Restore VeraCrypt loader to boot menu", 'm', ActionRestoreDcsBootMenu, NULL);
-	item = DcsMenuAppend(item, L"Remove VeraCrypt loader from boot menu", 'z' , ActionRemoveDcsBootMenu, NULL);
-
-	if (!EFI_ERROR(FileExist(NULL, L"EFI\\VeraCrypt\\DcsProp"))) {
-		item = DcsMenuAppend(item, L"Restore VeraCrypt loader configuration to system disk", 'c', ActionRestoreDcsProp, NULL);
-	}
-
-	if (!EFI_ERROR(FileExist(NULL, L"EFI\\VeraCrypt\\svh_bak"))) {
-		item = DcsMenuAppend(item, L"Restore OS header keys", 'k', ActionRestoreHeader, NULL);
-	}
-
-	if (!EFI_ERROR(FileExist(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi"))) {
-		item = DcsMenuAppend(item, L"Restore VeraCrypt loader binaries to system disk", 'r', ActionRestoreDcsLoader, NULL);
-		item = DcsMenuAppend(item, L"Boot VeraCrypt loader from rescue disk", 'v', ActionDcsBoot, NULL);
-	}
-	
-	item = DcsMenuAppend(item, L"Boot Original Windows Loader", 'o', ActionWindowsBoot, NULL);
-
-	if (!EFI_ERROR(FileExist(NULL, L"EFI\\Boot\\WinPE_boot" ARCHdotEFI))) {
-		item = DcsMenuAppend(item, L"Boot Windows PE from rescue disk", 'w', ActionBootWinPE, NULL);
-	}
-
-	if (!EFI_ERROR(FileExist(NULL, L"EFI\\Shell\\Shell.efi"))) {
-		item = DcsMenuAppend(item, L"Boot Shell.efi from rescue disk", 's', ActionShell, NULL);
-	}
-
-	item = DcsMenuAppend(item, L"Help", 'h', ActionHelp, NULL);
-	item = DcsMenuAppend(item, L"Exit", 'e', ActionExit, NULL);
-	OUT_PRINT(L"%V%a rescue disk %a%N\n", TC_APP_NAME, VERSION_STRING);
-	gBS->SetWatchdogTimer(0, 0, 0, NULL);
-	do {
-		DcsMenuPrint(gMenu);
-		item = NULL;
-		key.UnicodeChar = 0;
-		while (item == NULL) {
-			item = gMenu;
-			key = GetKey();
-			while (item != NULL) {
-				if (item->Select == key.UnicodeChar) break;
-				item = item->Next;
-			}
+		if (!EFI_ERROR(FileExist(NULL, L"EFI\\VeraCrypt\\DcsProp"))) {
+			item = DcsMenuAppend(item, L"Restore VeraCrypt loader configuration to system disk", 'c', ActionRestoreDcsProp, NULL);
 		}
-		OUT_PRINT(L"%c\n",key.UnicodeChar);
-		res = item->Action(item->Context);
+
+		if (!EFI_ERROR(FileExist(NULL, L"EFI\\VeraCrypt\\svh_bak"))) {
+			item = DcsMenuAppend(item, L"Restore OS header keys", 'k', ActionRestoreHeader, NULL);
+		}
+
+		if (!EFI_ERROR(FileExist(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi"))) {
+			item = DcsMenuAppend(item, L"Restore VeraCrypt loader binaries to system disk", 'r', ActionRestoreDcsLoader, NULL);
+			item = DcsMenuAppend(item, L"Boot VeraCrypt loader from rescue disk", 'v', ActionDcsBoot, NULL);
+		}
+		
+		item = DcsMenuAppend(item, L"Boot Original Windows Loader", 'o', ActionWindowsBoot, NULL);
+
+		if (!EFI_ERROR(FileExist(NULL, L"EFI\\Boot\\WinPE_boot" ARCHdotEFI))) {
+			item = DcsMenuAppend(item, L"Boot Windows PE from rescue disk", 'w', ActionBootWinPE, NULL);
+		}
+
+		if (!EFI_ERROR(FileExist(NULL, L"EFI\\Shell\\Shell.efi"))) {
+			item = DcsMenuAppend(item, L"Boot Shell.efi from rescue disk", 's', ActionShell, NULL);
+		}
+
+		item = DcsMenuAppend(item, L"Help", 'h', ActionHelp, NULL);
+		item = DcsMenuAppend(item, L"Exit", 'e', ActionExit, NULL);
+		OUT_PRINT(L"%V%a rescue disk %a%N\n", TC_APP_NAME, VERSION_STRING);
+		gBS->SetWatchdogTimer(0, 0, 0, NULL);
+		do {
+			DcsMenuPrint(gMenu);
+			item = NULL;
+			key.UnicodeChar = 0;
+			while (item == NULL) {
+				item = gMenu;
+				key = GetKey();
+				while (item != NULL) {
+					if (item->Select == key.UnicodeChar) break;
+					item = item->Next;
+				}
+			}
+			OUT_PRINT(L"%c\n",key.UnicodeChar);
+			res = item->Action(item->Context);
+			if (EFI_ERROR(res)) {
+				ERR_PRINT(L"%r\n", res);
+			}
+		} while (gContiniue);
+	}
+	else
+	{
+		/* No VeraCrypt folder. Boot directly from the hard drive */
+		res = ActionDcsBoot (NULL);
 		if (EFI_ERROR(res)) {
 			ERR_PRINT(L"%r\n", res);
 		}
-	} while (gContiniue);
+	}
 	return EFI_INVALID_PARAMETER;
 }

@@ -804,6 +804,7 @@ enum OnExitTypes{
 	OnExitAuthFaild = 1,
 	OnExitAuthNotFound,
 	OnExitAuthTimeout,
+	OnExitAuthCancelled,
 	OnExitSuccess
 };
 
@@ -976,6 +977,8 @@ OnExit(
 		if (fileStr != NULL) {
 			EfiSetVar(L"DcsExecCmd", NULL, fileStr, (StrLen(fileStr) + 1) * 2, EFI_VARIABLE_BOOTSERVICE_ACCESS);
 		}
+
+		retValue = EFI_DCS_POSTEXEC_REQUESTED;
 		goto exit;
 	}
 
@@ -1185,6 +1188,8 @@ UefiMain(
 	if (EFI_ERROR(res)) {
 		if (res == EFI_TIMEOUT)
 			return OnExit(gOnExitTimeout, OnExitAuthTimeout, res);
+		else if (res == EFI_DCS_USER_CANCELED)
+			return OnExit(gOnExitCancelled, OnExitAuthCancelled, res);
 		else
 			return OnExit(gOnExitFailed, OnExitAuthFaild, res);
 	}

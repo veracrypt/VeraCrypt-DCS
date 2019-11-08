@@ -32,6 +32,7 @@ https://opensource.org/licenses/LGPL-3.0
 #define EFI_DCS_REBOOT_REQUESTED	ENCODE_ERROR(0xDC50002)
 #define EFI_DCS_HALT_REQUESTED		ENCODE_ERROR(0xDC50003)
 #define EFI_DCS_USER_CANCELED		ENCODE_ERROR(0xDC50004)
+#define EFI_DCS_POSTEXEC_REQUESTED	ENCODE_ERROR(0xDC50005)
 
 //////////////////////////////////////////////////////////////////////////
 // Check error 

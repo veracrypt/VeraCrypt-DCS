@@ -82,6 +82,7 @@ CHAR8* gOnExitFailed = NULL;
 CHAR8* gOnExitSuccess = NULL;
 CHAR8* gOnExitNotFound = NULL;
 CHAR8* gOnExitTimeout = NULL;
+CHAR8* gOnExitCancelled = NULL;
 
 //////////////////////////////////////////////////////////////////////////
 // Authorize
@@ -184,6 +185,8 @@ VCAuthLoadConfig()
 	ConfigReadString("ActionFailed", "Exit", gOnExitFailed, MAX_MSG);
 	VCCONFIG_ALLOC(gOnExitTimeout, MAX_MSG);
 	ConfigReadString("ActionTimeout", "Shutdown", gOnExitTimeout, MAX_MSG);
+	VCCONFIG_ALLOC(gOnExitCancelled, MAX_MSG);
+	ConfigReadString("ActionCancelled", "Exit", gOnExitCancelled, MAX_MSG);
 
 	strTemp = MEM_ALLOC(MAX_MSG);
 	ConfigReadString("PartitionGuidOS", "", strTemp, MAX_MSG);

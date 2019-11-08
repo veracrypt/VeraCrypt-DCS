@@ -201,7 +201,11 @@ DcsBootMain(
 	// Authorize
 	gBS->SetWatchdogTimer(0, 0, 0, NULL);
 	res = EfiExec(NULL, L"\\EFI\\VeraCrypt\\DcsInt.dcs");
-   if (EFI_ERROR(res)) {
+   if (EFI_ERROR(res) && (res != EFI_DCS_POSTEXEC_REQUESTED)) {
+
+      // Clear DcsExecPartGuid before execute OS to avoid problem in VirtualBox with reboot.
+      EfiSetVar(L"DcsExecPartGuid", NULL, NULL, 0, EFI_VARIABLE_BOOTSERVICE_ACCESS);
+      EfiSetVar(L"DcsExecCmd", NULL, NULL, 0, EFI_VARIABLE_BOOTSERVICE_ACCESS);
       // ERR_PRINT(L"\nDcsInt.efi %r\n",res);
 	  if (res == EFI_DCS_SHUTDOWN_REQUESTED)
 	  {

@@ -75,6 +75,7 @@ extern CHAR8* gOnExitFailed;
 extern CHAR8* gOnExitSuccess;
 extern CHAR8* gOnExitNotFound;
 extern CHAR8* gOnExitTimeout;
+extern CHAR8* gOnExitCancelled;
 
 void
 VCAuthAsk();

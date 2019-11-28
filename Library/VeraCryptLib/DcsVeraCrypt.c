@@ -400,9 +400,11 @@ VCAskPwd(
 VOID
 VCAuthAsk() 
 {
+	MEM_BURN(&gAuthPassword, sizeof(gAuthPassword));
 	VCAskPwd(AskPwdLogin, &gAuthPassword);
 
 	if ((gAuthPwdCode == AskPwdRetCancel) || (gAuthPwdCode == AskPwdRetTimeout)) {
+		MEM_BURN(&gAuthPassword, sizeof(gAuthPassword));
 		return;
 	}
 

@@ -29,6 +29,8 @@ AskConsolePwdInt(
 	EFI_INPUT_KEY key;
 	UINT32 count = 0;
 	UINTN i;
+	
+	if ((asciiLine != NULL) && (line_max >= 1)) asciiLine[0] = '\0';
 
 	gST->ConOut->EnableCursor(gST->ConOut, TRUE);
 	if (gPasswordTimeout) {
@@ -63,19 +65,21 @@ AskConsolePwdInt(
 
 		if (key.ScanCode == SCAN_F5) {
 			show = show ? 0 : 1;
-			if (show) {
-				for (i = 0; i < count; i++) {
-					OUT_PRINT(L"\b");
-				}
-				OUT_PRINT(L"%a", asciiLine);
-			}
-			else {
-				for (i = 0; i < count; i++) {
-					OUT_PRINT(L"\b");
-				}
-				if (gPasswordProgress) {
+			if (count > 0) {
+				if (show) {
 					for (i = 0; i < count; i++) {
-						OUT_PRINT(L"*");
+						OUT_PRINT(L"\b");
+					}
+					OUT_PRINT(L"%a", asciiLine);
+				}
+				else {
+					for (i = 0; i < count; i++) {
+						OUT_PRINT(L"\b");
+					}
+					if (gPasswordProgress) {
+						for (i = 0; i < count; i++) {
+							OUT_PRINT(L"*");
+						}
 					}
 				}
 			}

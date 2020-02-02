@@ -22,6 +22,7 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Library/CommonLib.h>
 
 #include <Protocol/DcsBmlProto.h>
+#include <DcsConfig.h>
 #include "DcsBml.h"
 
 //////////////////////////////////////////////////////////////////////////
@@ -83,8 +84,8 @@ BmlVirtualNotifyEvent(
 //////////////////////////////////////////////////////////////////////////
 // Boot order
 //////////////////////////////////////////////////////////////////////////
-CHAR16* sDcsBootEfi = L"EFI\\VeraCrypt\\DcsBoot.efi";
-CHAR16* sDcsBootEfiDesc = L"VeraCrypt(DCS) loader";
+CHAR16* sDcsBootEfi = L"EFI\\" DCS_DIRECTORY L"\\DcsBoot.efi";
+CHAR16* sDcsBootEfiDesc = _T(DCS_CAPTION) L"(Dsc) loader";
 
 EFI_STATUS
 UpdateBootOrder()

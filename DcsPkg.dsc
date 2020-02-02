@@ -67,8 +67,10 @@
   PasswordLib|DcsPkg/Library/PasswordLib/PasswordLib.inf
   RngLib|MdePkg/Library/BaseRngLib/BaseRngLib.inf
   DcsCfgLib|DcsPkg/Library/DcsCfgLib/DcsCfgLib.inf
+  DcsIntLib|DcsPkg/Library/DcsIntLib/DcsIntLib.inf
   DcsTpmLib|DcsPkg/Library/DcsTpmLib/DcsTpmLib.inf
   VeraCryptLib|DcsPkg/Library/VeraCryptLib/VeraCryptLib.inf
+  DiskCryptorLib|DcsPkg/Library/DiskCryptorLib/DiskCryptorLib.inf
 
  [LibraryClasses.common.UEFI_APPLICATION]
   ShellLib|ShellPkg/Library/UefiShellLib/UefiShellLib.inf

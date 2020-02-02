@@ -3,6 +3,7 @@ Password library
 
 Copyright (c) 2016. Disk Cryptography Services for EFI (DCS), Alex Kolotnikov
 Copyright (c) 2016. VeraCrypt, Mounir IDRASSI 
+Copyright (c) 2019. DiskCryptor, David Xanatos
 
 This program and the accompanying materials are licensed and made available 
 under the terms and conditions of the GNU Lesser General Public License, version 3.0 (LGPL-3.0).
@@ -17,6 +18,10 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Uefi.h>
 #include <Protocol/GraphicsOutput.h>
 
+#define SET_VAR_CHAR(asciiLine, wide, pos, value) \
+	if (wide) ((CHAR16*)asciiLine)[pos] = (CHAR16)value; \
+	else ((CHAR8*)asciiLine)[pos] = (CHAR8)value;
+
 extern CHAR16*	gPasswordPictureFileName;
 
 extern CHAR8*	gPasswordPictureChars;
@@ -26,12 +31,14 @@ extern UINT8	gPasswordVisible;
 extern UINT8	gPasswordProgress;
 extern int		gPasswordTimeout;
 
+extern int		gPasswordHideLetters;
 extern int		gPasswordShowMark;
 extern VOID*	gPictPwdBmp;
 extern UINTN	gPictPwdBmpSize;
 
 extern int		gPlatformLocked;
 extern int		gTPMLocked;
+extern int      gTPMLockedInfoDelay;
 extern int		gSCLocked;
 
 enum AskPwdType {
@@ -44,6 +51,7 @@ enum AskPwdRetCode {
 	AskPwdRetCancel = 0,
 	AskPwdRetLogin  = 1,
 	AskPwdRetChange = 2,
+	AskPwdForcePass = 3,
 	AskPwdRetTimeout
 };
 
@@ -51,18 +59,20 @@ VOID
 AskPictPwdInt(
 	IN  UINTN	pwdType,
 	IN  UINTN	pwdMax,
-	OUT CHAR8*	pwd,
+	OUT VOID*	pwd,
 	OUT UINT32*	pwdLen,
-	OUT INT32*	retCode
+	OUT INT32*	retCode,
+	IN  BOOLEAN wide
 	);
 
 VOID
 AskConsolePwdInt(
 	OUT UINT32   *length,
-	OUT CHAR8    *asciiLine,
+	OUT VOID     *asciiLine,
 	OUT INT32    *retCode,
-	IN  UINTN    line_max,
-	IN  UINT8    show
+	IN  UINTN    length_max,
+	IN  UINT8    show,
+	IN  BOOLEAN  wide
 	);
 
 extern EFI_GUID*                     gSmbSystemUUID;        // Universal unique ID 

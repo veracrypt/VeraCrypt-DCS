@@ -150,7 +150,7 @@ GetKey(void)
 		res1 = gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, &EventIndex);
 		res2 = gST->ConIn->ReadKeyStroke(gST->ConIn, &key);
 	} while (EFI_ERROR(res1) || EFI_ERROR(res2));
-   return key;
+   return MapKeyboardKey(key);
 }
 
 VOID

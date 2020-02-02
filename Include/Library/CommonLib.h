@@ -33,6 +33,8 @@ https://opensource.org/licenses/LGPL-3.0
 #define EFI_DCS_HALT_REQUESTED		ENCODE_ERROR(0xDC50003)
 #define EFI_DCS_USER_CANCELED		ENCODE_ERROR(0xDC50004)
 #define EFI_DCS_POSTEXEC_REQUESTED	ENCODE_ERROR(0xDC50005)
+#define EFI_DCS_USER_TIMEOUT		ENCODE_ERROR(0xDC50006)
+#define EFI_DCS_DATA_NOT_FOUND		ENCODE_ERROR(0xDC50007)
 
 //////////////////////////////////////////////////////////////////////////
 // Check error 
@@ -111,8 +113,14 @@ EfiGetStartDevice(
 // Print handle info
 //////////////////////////////////////////////////////////////////////////
 
-VOID EfiPrintDevicePath(
+VOID 
+EfiPrintDevicePath(
    IN EFI_HANDLE handle
+   );
+
+VOID 
+EfiPrintPath(
+   IN EFI_DEVICE_PATH *DevicePath
    );
 
 VOID
@@ -446,6 +454,21 @@ DcsStrHexToBytes(
 	OUT UINT8  *b,
 	IN  UINTN  *bytesLen,
 	IN  CHAR16  *str
+	);
+
+//////////////////////////////////////////////////////////////////////////
+// Keyboard Mapper
+//////////////////////////////////////////////////////////////////////////
+
+#define KB_MAP_QWERTY  0
+#define KB_MAP_QWERTZ  1
+#define KB_MAP_AZERTY  2
+
+extern int gKeyboardLayout;
+
+EFI_INPUT_KEY 
+MapKeyboardKey(
+	EFI_INPUT_KEY key
 	);
 
 //////////////////////////////////////////////////////////////////////////

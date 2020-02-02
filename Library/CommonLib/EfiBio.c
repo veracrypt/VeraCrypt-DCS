@@ -40,6 +40,16 @@ EfiPrintDevicePath(
 }
 
 VOID
+EfiPrintPath(
+   IN EFI_DEVICE_PATH  *DevicePath)
+{
+   CHAR16 *StrPath;
+   StrPath = ConvertDevicePathToText(DevicePath, FALSE, FALSE);
+   OUT_PRINT(StrPath);
+   MEM_FREE(StrPath);
+}
+
+VOID
 EfiPrintProtocols(
    IN EFI_HANDLE handle)
 {

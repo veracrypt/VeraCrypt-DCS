@@ -381,12 +381,13 @@ BltText(
 	IN INT32 x,
 	IN INT32 y,
 	IN INT32 scale, // 0..256 reduce 256... enlarge
-	IN CONST CHAR8 *text)
+	IN CONST VOID *text,
+	IN BOOLEAN wide)
 {
 	INT32	posX = x;
 	INT32 posY = y;
 	const char *c;
-	for (c = text; *c; ++c)
+	for (c = text; *c; c += (wide ? 2 : 1))
 	{
 		INT8 ch = *c;
 		if (ch >= 32 && ch <= 126) {

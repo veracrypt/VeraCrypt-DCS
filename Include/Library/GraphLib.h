@@ -169,7 +169,8 @@ BltText(
 	IN INT32 x,
 	IN INT32 y,
 	IN INT32 scale, // 0..256 reduce 256... enlarge
-	IN CONST CHAR8 *text);
+	IN CONST VOID *text,
+	IN BOOLEAN wide);
 
 
 EFI_STATUS

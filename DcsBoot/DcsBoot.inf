@@ -41,7 +41,7 @@
   BaseLib
   MemoryAllocationLib
   CommonLib
-  VeraCryptLib
+  DcsCfgLib
 
 [Guids]
   gEfiGlobalVariableGuid

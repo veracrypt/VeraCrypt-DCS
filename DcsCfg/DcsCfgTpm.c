@@ -16,7 +16,7 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Library/DcsTpmLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/DcsCfgLib.h>
-#include "DcsVeraCrypt.h"
+//#include "DcsVeraCrypt.h"
 
 EFI_STATUS
 Tpm12ListPcrs(
@@ -74,8 +74,8 @@ EFI_STATUS
 TpmDcsConfigure(
 	) {
 	EFI_STATUS res;
-	Password pwd;
-	ZeroMem(&pwd, sizeof(pwd));
+	DePassword pwd;
+	MEM_BURN(&pwd, sizeof(pwd));
 	CE(GetTpm());
 	CE(RndInit(RndTypeTpm, NULL, 0, &gRnd));
 	CE(gTpm->Configure(gTpm));

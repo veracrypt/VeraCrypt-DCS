@@ -20,9 +20,7 @@ https://opensource.org/licenses/LGPL-3.0
 
 #include <Library/CommonLib.h>
 #include <Library/DcsCfgLib.h>
-
-#include <common/Tcdefs.h>
-#include <BootCommon.h>
+#include <DcsConfig.h>
 
 EFI_GUID gEfiPartTypeMsReservedPartGuid = EFI_PART_TYPE_MS_RESERVED_PART_GUID;
 EFI_GUID gEfiPartTypeBasicDataPartGuid = EFI_PART_TYPE_BASIC_DATA_PART_GUID;
@@ -679,12 +677,12 @@ DeListExecEdit()
 EFI_STATUS
 DeListPwdCacheEdit()
 {
-	UINTN     count;
-	UINTN     len;
-	UINTN     i;
-	UINT32    crc = 0;
-	Password  pwd;
-	UINTN     pim;
+	UINTN      count;
+	UINTN      len;
+	UINTN      i;
+	UINT32     crc = 0;
+	DePassword pwd;
+	UINTN      pim;
 	EFI_STATUS res;
 	if (DePwdCache == NULL) {
 		DePwdCache = MEM_ALLOC(sizeof(*DePwdCache));
@@ -692,21 +690,21 @@ DeListPwdCacheEdit()
 	}
 	OUT_PRINT(L"PwdCache\n");
 	do {
-		count = (uint32)AskUINTN("Count[0-4]:", DePwdCache->Count);
+		count = (UINT32)AskUINTN("Count[0-4]:", DePwdCache->Count);
 	} while (count > 4);
-	DePwdCache->Count = (uint32)count;
+	DePwdCache->Count = (UINT32)count;
 	for (i = 0; i < 4; ++i) {
 		ZeroMem(&pwd, sizeof(pwd));
 		pim = 0;
 		if (i < DePwdCache->Count) {
 			OUT_PRINT(L"%H%d%N [%a] [%d]\n:", i, DePwdCache->Pwd[i].Text, DePwdCache->Pim[i]);
-			GetLine(&len, NULL, pwd.Text, MAX_PASSWORD, 1);
+			GetLine(&len, NULL, pwd.Text, DE_MAX_PASSWORD, 1);
 			if (len != 0) {
-				pwd.Length = (uint32)len;
-				pim = (uint32)AskUINTN("Pim:", DePwdCache->Pim[i]);
+				pwd.Length = (UINT32)len;
+				pim = (UINT32)AskUINTN("Pim:", DePwdCache->Pim[i]);
 			}
 		}
-		DePwdCache->Pim[i] = (uint32)pim;
+		DePwdCache->Pim[i] = (UINT32)pim;
 		CopyMem(&DePwdCache->Pwd[i], &pwd, sizeof(pwd));
 	}
 	ZeroMem(&DePwdCache->pad, sizeof(DePwdCache->pad));

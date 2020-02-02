@@ -24,12 +24,13 @@ https://opensource.org/licenses/LGPL-3.0
 CHAR16*	gPasswordPictureFileName = NULL;
 
 CHAR8*	gPasswordPictureChars = NULL;
-CHAR8*	gPasswordPictureCharsDefault = "MN/[aQ-eyPr}GT: |V^UqiI_gbdA9YwZ%f8t6S@D\"7uXl\\30R#+zH*,W4J?=&BLFv]hx~E;$<.o'sp1`(>C)O{!5j2nmkcK";
-//CHAR8*	gPicturePasswordCharsDefault = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
-UINTN		gPasswordPictureCharsLen = 95;
+//CHAR8*	gPasswordPictureCharsDefault = "MN/[aQ-eyPr}GT: |V^UqiI_gbdA9YwZ%f8t6S@D\"7uXl\\30R#+zH*,W4J?=&BLFv]hx~E;$<.o'sp1`(>C)O{!5j2nmkcK";
+CHAR8*	gPasswordPictureCharsDefault = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\b";
+UINTN		gPasswordPictureCharsLen = 96;
 
 UINT8		gPasswordVisible = 0;
-int		gPasswordShowMark = 1;
+int		gPasswordHideLetters = 1;
+int		gPasswordShowMark = 0;
 UINT8		gPasswordProgress = 1;
 int		gPasswordTimeout = 0;
 
@@ -65,16 +66,16 @@ CellUpdate(
 	IN UINTN		x,
 	IN UINTN		y,
 	IN BOOLEAN  selected) {
-	if (selected && gPasswordShowMark) {
+	if (selected && gPasswordShowMark && gPasswordHideLetters) {
 		BltCircle(blt, &ctxMark, (INT32)(x * step + step / 2), (INT32)(y * step + step / 2), (INT32)(step / 3), TRUE);
 		BltCircle(blt, &ctxCell, (INT32)(x * step + step / 2), (INT32)(y * step + step / 2), (INT32)(step / 9), TRUE);
 	}
 	else {
 		CHAR8	ch[2] = { 0,0 };
 		BltCircle(blt, &ctxCell, (INT32)(x * step + step / 2), (INT32)(y * step + step / 2), (INT32)(step / 3), FALSE);
-		if (gPasswordVisible) {
+		if (gPasswordVisible || !gPasswordHideLetters) {
 			ch[0] = gPasswordPictureChars[(x + blt->Width / step * y) % gPasswordPictureCharsLen];
-			BltText(blt, &ctxCell, (INT32)(x * step + step / 2 - 12), (INT32)(y * step + step / 2 - 12), 256, ch);
+			BltText(blt, &ctxCell, (INT32)(x * step + step / 2 - 12), (INT32)(y * step + step / 2 - 12), 256, ch, FALSE);
 		}
 	}
 }
@@ -151,7 +152,7 @@ DrawTouchZone(
 	) {
 	BltFill(bltScrn, gColorBlack, (INT32)(sWidth - step), (INT32)(2 + zone->Zone * step), (INT32)(INT32)(sWidth - 2), (INT32)(step + zone->Zone * step));
 	BltBox(bltScrn, &ctxCell, (INT32)(sWidth - step), (INT32)(2 + zone->Zone * step), (INT32)(INT32)(sWidth - 2), (INT32)(step + zone->Zone * step));
-	BltText(bltScrn, &ctxCell, (INT32)(sWidth - step * 3 / 4), (INT32)(step * 1 / 3 + zone->Zone * step), 128, zone->Message);
+	BltText(bltScrn, &ctxCell, (INT32)(sWidth - step * 3 / 4), (INT32)(step * 1 / 3 + zone->Zone * step), 128, zone->Message, FALSE);
 }
 
 BOOLEAN
@@ -171,13 +172,14 @@ IsTouchZone(
 VOID
 DrawPwdZone(
 	IN CHAR8*	pwd, 
-	IN UINT32 pwdMax) 
+	IN UINT32   pwdMax,
+	IN BOOLEAN  wide) 
 {
 	INT32 pwdGrphMaxLen = (INT32)(sWidth - 2 * step);
 	BltFill(bltScrn, gColorBlack, 0, 0, (INT32)(sWidth - 2 * step), (INT32)(posPictY));
 	if (gPasswordProgress || gPasswordVisible) {
 		if (gPasswordVisible) {
-			BltText(bltScrn, &ctxCell, 0, 0, 256, pwd);
+			BltText(bltScrn, &ctxCell, 0, 0, 256, pwd, wide);
 		}
 		else {
 			INT32 pwdGrphLen = (INT32)(pwdGrphMaxLen * picPwdIdx / pwdMax);
@@ -263,9 +265,10 @@ VOID
 AskPictPwdInt(
 	IN  UINTN	pwdType,
 	IN  UINTN	pwdMax,
-	OUT CHAR8*	pwd,
+	OUT VOID*	pwd,
 	OUT UINT32*	pwdLen,
-	OUT INT32*	retCode
+	OUT INT32*	retCode,
+	IN  BOOLEAN wide
 	) {
 	EFI_STATUS	res;
 	UINTN		   cellX, cellY;
@@ -283,6 +286,8 @@ AskPictPwdInt(
 	BOOLEAN        beepOn = FALSE;
 	UINTN          pwdAction = PwdActNone;
 	CHAR8          pwdNewChar = 0;
+	if (wide)
+		pwdMax /= 2;
 
 	if (gPasswordTimeout) {
 		InputEvents[0] = gST->ConIn->WaitForKey;
@@ -598,16 +603,18 @@ AskPictPwdInt(
 			BOOLEAN bUpdPwdZone = FALSE;
 			if (pwdNewChar == '\b' && picPwdIdx > 0) {
 				picPwdIdx--;
-				pwd[picPwdIdx] = 0;
+				SET_VAR_CHAR(pwd, wide, picPwdIdx, 0); //pwd[picPwdIdx] = 0;
 				bUpdPwdZone = TRUE;
 			} else if ((picPwdIdx < pwdMax - 1) && (pwdNewChar >= 32)) {
-				pwd[picPwdIdx++] = pwdNewChar;
-				pwd[picPwdIdx] = 0;
+				SET_VAR_CHAR(pwd, wide, picPwdIdx++, pwdNewChar); //pwd[picPwdIdx++] = pwdNewChar;
+				SET_VAR_CHAR(pwd, wide, picPwdIdx, 0); //pwd[picPwdIdx] = 0;
 				bUpdPwdZone = TRUE;
 			}
 			if(bUpdPwdZone) {
 				*pwdLen = (int)picPwdIdx;
-				DrawPwdZone(pwd, (INT32)pwdMax);
+				if (wide)
+					*pwdLen *= 2;
+				DrawPwdZone(pwd, (INT32)pwdMax, wide);
 				if (gBeepControlEnabled && gBeepEnabled) {
 					SpeakerBeep((UINT16)gBeepToneDefault, gBeepNumberDefault, 0, 0);
 					gBS->SetTimer(BeepOffEvent, TimerRelative, gBeepDurationDefault * 10);
@@ -627,7 +634,7 @@ AskPictPwdInt(
 		}
 		else if (PwdActShow == pwdAction) {
 			gPasswordVisible = gPasswordVisible ? 0 : 1;
-			DrawPwdZone(pwd, (INT32)pwdMax);
+			DrawPwdZone(pwd, (INT32)pwdMax, wide);
 			DrawPwdPicture();
 			BltDrawBlt(bltScrn, bltPwd, posPictX, posPictY);
 			TZN_Show.Message = gPasswordVisible ? msgHidePwd : msgShowPwd;

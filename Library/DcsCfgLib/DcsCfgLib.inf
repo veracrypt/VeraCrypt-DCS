@@ -26,8 +26,11 @@
 #
 
 [Sources.common]
+common\Xml.c
+common\Xml.h
 GptEdit.c
 DcsRandom.c
+DcsConfig.c
 
 [Sources.X64]
 

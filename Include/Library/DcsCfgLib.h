@@ -5,8 +5,10 @@ Copyright (c) 2016. Disk Cryptography Services for EFI (DCS), Alex Kolotnikov
 
 This program and the accompanying materials
 are licensed and made available under the terms and conditions
-of the [to be defined License, Version]. The full text of the license may be found at
-[opensource license  to be defined]
+of the GNU Lesser General Public License, version 3.0 (LGPL-3.0).
+
+The full text of the license may be found at
+https://opensource.org/licenses/LGPL-3.0
 **/
 
 #ifndef __DCSCFGLIB_H__
@@ -15,6 +17,7 @@ of the [to be defined License, Version]. The full text of the license may be fou
 #include <Uefi.h>
 
 #include "CommonLib.h"
+#include "../DeListDefines.h"
 
 //////////////////////////////////////////////////////////////////////////
 // DeList and GPT
@@ -33,9 +36,6 @@ of the [to be defined License, Version]. The full text of the license may be fou
   { \
     0xDE94BBA4, 0x06D1, 0x06D1, { 0xA1, 0x6A, 0xBF, 0xD5, 0x01, 0x79, 0xD6, 0xAC } \
   }
-
-typedef struct _DCS_DISK_ENTRY_LIST DCS_DISK_ENTRY_LIST;
-typedef struct _DCS_DEP_EXEC DCS_DEP_EXEC;
 
 extern EFI_GUID            gEfiPartTypeBasicDataPartGuid;
 extern EFI_GUID            gEfiPartTypeMsReservedPartGuid;

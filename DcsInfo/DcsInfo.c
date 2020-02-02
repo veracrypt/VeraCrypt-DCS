@@ -21,6 +21,7 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Guid/GlobalVariable.h>
 #include <Library/PasswordLib.h>
 #include <Library/GraphLib.h>
+#include <DcsConfig.h>
 
 #ifdef _M_X64
 #define ARCH_NAME "X64"
@@ -326,7 +327,7 @@ DcsInfoMain(
       ERR_PRINT(L"InitFS %r\n", res);
 		return res;
    }
-	res = FileOpen(NULL, L"EFI\\VeraCrypt\\PlatformInfo", &fInfo, EFI_FILE_MODE_READ | EFI_FILE_MODE_CREATE | EFI_FILE_MODE_WRITE, 0);
+	res = FileOpen(NULL, L"\\EFI\\" DCS_DIRECTORY L"\\PlatformInfo", &fInfo, EFI_FILE_MODE_READ | EFI_FILE_MODE_CREATE | EFI_FILE_MODE_WRITE, 0);
 	if (EFI_ERROR(res)) {
 		ERR_PRINT(L"PlatformInfo create %r\n", res);
 		return res;

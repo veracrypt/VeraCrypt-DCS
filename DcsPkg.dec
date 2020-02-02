@@ -16,12 +16,14 @@
   Include
   Library/VeraCryptLib
   Library/VeraCryptLib/crypto
+  Library/DiskCryptorLib
 
 [LibraryClasses]
   CommonLib|Include/Library/CommonLib.h
   GraphLib|Include/Library/GraphLib.h
   PasswordLib|Include/Library/PasswordLib.h
   DcsCfgLib|Include/Library/DcsCfgLib.h
+  DcsIntLib|Include/Library/DcsIntLib.h
 
 [Guids]
   # Include/CommonLib.h

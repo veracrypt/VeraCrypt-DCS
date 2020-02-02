@@ -1,3 +1,4 @@
+@echo off
 pushd "%~dp0"
 
 set dcsarch=X64

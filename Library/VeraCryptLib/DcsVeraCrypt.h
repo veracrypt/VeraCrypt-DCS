@@ -55,11 +55,6 @@ extern INT32 gRUD;
 extern int gAuthSecRegionSearch;
 extern int gSecRegionInfoDelay;
 
-extern int gPlatformLocked;
-extern int gTPMLocked;
-extern int gTPMLockedInfoDelay;
-extern int gSCLocked;
-
 extern int gAuthPwdCode;
 
 extern CHAR8* gPlatformKeyFile;
@@ -70,12 +65,6 @@ extern int gDcsBootForce;
 extern char* gForcePasswordMsg;
 extern int gForcePasswordType;
 extern UINT8 gForcePasswordProgress;
-
-extern CHAR8* gOnExitFailed;
-extern CHAR8* gOnExitSuccess;
-extern CHAR8* gOnExitNotFound;
-extern CHAR8* gOnExitTimeout;
-extern CHAR8* gOnExitCancelled;
 
 void
 VCAuthAsk();

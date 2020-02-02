@@ -29,8 +29,6 @@ https://opensource.org/licenses/Apache-2.0
 #include "Library/DcsTpmLib.h"
 #include <DcsConfig.h>
 
-
-
 ///////////////////////////////////////////////////////////////////////////
 // Globals
 //////////////////////////////////////////////////////////////////////////
@@ -78,18 +76,12 @@ char* gForcePasswordMsg = NULL;
 int gForcePasswordType = 0;
 UINT8 gForcePasswordProgress = 1;
 
-CHAR8* gOnExitFailed = NULL;
-CHAR8* gOnExitSuccess = NULL;
-CHAR8* gOnExitNotFound = NULL;
-CHAR8* gOnExitTimeout = NULL;
-CHAR8* gOnExitCancelled = NULL;
-
 //////////////////////////////////////////////////////////////////////////
 // Authorize
 /////////////////////////////////////////////////////////////////////////
 
 #define VCCONFIG_ALLOC(data, size)       \
-        if(data == NULL) MEM_FREE(data); \
+        if(data != NULL) MEM_FREE(data); \
         data = MEM_ALLOC(size);
 
 VOID
@@ -102,17 +94,16 @@ VCAuthLoadConfig()
 
 	SetMem(&gAuthPassword, sizeof(gAuthPassword), 0);
 
-	strTemp = MEM_ALLOC(MAX_MSG);
 	VCCONFIG_ALLOC(gPasswordPictureFileName, MAX_MSG * 2);
-	ConfigReadString("PasswordPicture", "\\EFI\\VeraCrypt\\login.bmp", strTemp, MAX_MSG);
-	AsciiStrToUnicodeStr(strTemp, gPasswordPictureFileName);
-	MEM_FREE(strTemp);
+	ConfigReadStringW("PasswordPicture", L"\\EFI\\" DCS_DIRECTORY L"\\login.bmp", gPasswordPictureFileName, MAX_MSG);
 
 	VCCONFIG_ALLOC(gPasswordPictureChars, MAX_MSG);
 	ConfigReadString("PictureChars", gPasswordPictureCharsDefault, gPasswordPictureChars, MAX_MSG);
 	gPasswordPictureCharsLen = strlen(gPasswordPictureChars);
 
 	gAuthPasswordType = ConfigReadInt("PasswordType", 0);
+
+	gKeyboardLayout = ConfigReadInt("KeyboardLayout", 0);
 
 	VCCONFIG_ALLOC(gAuthPasswordMsg, MAX_MSG);
 	ConfigReadString("PasswordMsg", "Password:", gAuthPasswordMsg, MAX_MSG);
@@ -148,6 +139,7 @@ VCAuthLoadConfig()
 
 	gPasswordProgress = (UINT8)ConfigReadInt("AuthorizeProgress", 1); // print "*"
 	gPasswordVisible = (UINT8)ConfigReadInt("AuthorizeVisible", 0);   // show chars
+	gPasswordHideLetters = ConfigReadInt("PasswordHideLetters", 1);   // always show letters in touch points
 	gPasswordShowMark = ConfigReadInt("AuthorizeMarkTouch", 1);       // show touch points
 	gPasswordTimeout = (UINT8)ConfigReadInt("PasswordTimeout", 180);   // If no password for <seconds> => <ESC>
 
@@ -176,18 +168,6 @@ VCAuthLoadConfig()
 	gTPMLockedInfoDelay = ConfigReadInt("TPMLockedInfoDelay", 9);
 	gSCLocked = ConfigReadInt("SCLocked", 0);
 
-	// Actions for DcsInt
-	VCCONFIG_ALLOC(gOnExitSuccess, MAX_MSG);
-	ConfigReadString("ActionSuccess", "Exit", gOnExitSuccess, MAX_MSG);
-	VCCONFIG_ALLOC(gOnExitNotFound, MAX_MSG);
-	ConfigReadString("ActionNotFound", "Exit", gOnExitNotFound, MAX_MSG);
-	VCCONFIG_ALLOC(gOnExitFailed, MAX_MSG);
-	ConfigReadString("ActionFailed", "Exit", gOnExitFailed, MAX_MSG);
-	VCCONFIG_ALLOC(gOnExitTimeout, MAX_MSG);
-	ConfigReadString("ActionTimeout", "Shutdown", gOnExitTimeout, MAX_MSG);
-	VCCONFIG_ALLOC(gOnExitCancelled, MAX_MSG);
-	ConfigReadString("ActionCancelled", "Exit", gOnExitCancelled, MAX_MSG);
-
 	strTemp = MEM_ALLOC(MAX_MSG);
 	ConfigReadString("PartitionGuidOS", "", strTemp, MAX_MSG);
 	if (strTemp[0] != 0) {
@@ -200,53 +180,6 @@ VCAuthLoadConfig()
 		}
 	}
 	MEM_FREE(strTemp);
-
-	// touch
-	tmp = ConfigReadInt("TouchDevice", -1);
-	if (tmp == -1) InitTouch();
-	if (tmp >= 0) {
-		if (gTouchCount == 0) InitTouch();
-		if (tmp < (int)gTouchCount) {
-			TouchGetIO(gTouchHandles[tmp], &gTouchPointer);
-		}
-	}
-	gTouchSimulate = ConfigReadInt("TouchSimulate", 0);
-
-	// Graph
-	tmp = ConfigReadInt("GraphDevice", -1);
-	if (tmp == -1) InitGraph();
-	if (tmp >= 0) {
-		if (gGraphCount == 0) InitGraph();
-		if (tmp < (int)gGraphCount) {
-			GraphGetIO(gGraphHandles[tmp], &gGraphOut);
-		}
-	}
-	if (gGraphOut != NULL) {
-		tmp = ConfigReadInt("GraphMode", -1);
-		if (tmp >= 0 && tmp <= (int)gGraphOut->Mode->MaxMode) {
-			gGraphOut->SetMode(gGraphOut, tmp);
-		}
-	}
-
-	// Beep
-	gBeepEnabled = ConfigReadInt("Beep", 0);
-	if (gBeepEnabled) {
-		gBeepNumberDefault = ConfigReadInt("BeepNumber", 1);
-		gBeepDurationDefault = ConfigReadInt("BeepDuration", 100);
-		gBeepIntervalDefault = ConfigReadInt("BeepInterval", 0);
-		gBeepToneDefault = ConfigReadInt("BeepTone", 0x500);
-		gBeepControlEnabled = ConfigReadInt("BeepControl", 1) != 0;
-
-		tmp = ConfigReadInt("BeepDevice", -1);
-		if (tmp == -1) InitSpeaker();
-		if (tmp >= 0) {
-			if (gSpeakerCount == 0) InitSpeaker();
-			if (tmp < (int)gSpeakerCount) {
-				SpeakerSelect(tmp);
-			}
-		}
-	}
-
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -343,7 +276,7 @@ VCAskPwd(
 			if (gAuthPasswordType == 1 &&
 				gGraphOut != NULL &&
 				((gTouchPointer != NULL) || (gTouchSimulate != 0))) {
-				AskPictPwdInt(pwdType, sizeof(vcPwd->Text), vcPwd->Text, &vcPwd->Length, &gAuthPwdCode);
+				AskPictPwdInt(pwdType, sizeof(vcPwd->Text), vcPwd->Text, &vcPwd->Length, &gAuthPwdCode, FALSE);
 			}
 			else {
 				switch (pwdType) {
@@ -358,7 +291,7 @@ VCAskPwd(
 					OUT_PRINT(L"%a", gAuthPasswordMsg);
 					break;
 				}
-				AskConsolePwdInt(&vcPwd->Length, vcPwd->Text, &gAuthPwdCode, sizeof(vcPwd->Text), gPasswordVisible);
+				AskConsolePwdInt(&vcPwd->Length, vcPwd->Text, &gAuthPwdCode, sizeof(vcPwd->Text), gPasswordVisible, FALSE);
 			}
 
 			if ((gAuthPwdCode == AskPwdRetCancel) || (gAuthPwdCode == AskPwdRetTimeout)) {

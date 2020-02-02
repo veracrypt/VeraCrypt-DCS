@@ -3,6 +3,7 @@ Ask password from console
 
 Copyright (c) 2016. Disk Cryptography Services for EFI (DCS), Alex Kolotnikov
 Copyright (c) 2016. VeraCrypt, Mounir IDRASSI
+Copyright (c) 2019. DiskCryptor, David Xanatos
 
 This program and the accompanying materials
 are licensed and made available under the terms and conditions
@@ -20,17 +21,22 @@ https://opensource.org/licenses/LGPL-3.0
 VOID
 AskConsolePwdInt(
 	OUT UINT32   *length,
-	OUT CHAR8    *asciiLine,
+	OUT VOID     *asciiLine,
 	OUT INT32    *retCode,
-	IN  UINTN    line_max,
-	IN  UINT8    show
+	IN  UINTN    length_max,
+	IN  UINT8    show,
+	IN  BOOLEAN  wide
 	)
 {
 	EFI_INPUT_KEY key;
 	UINT32 count = 0;
 	UINTN i;
-	
-	if ((asciiLine != NULL) && (line_max >= 1)) asciiLine[0] = '\0';
+	UINTN line_max = length_max;
+	if (wide)
+		line_max /= 2;
+
+	if ((asciiLine != NULL) && (line_max >= 1))
+		SET_VAR_CHAR(asciiLine, wide, 0, '\0'); //asciiLine[0] = '\0';
 
 	gST->ConOut->EnableCursor(gST->ConOut, TRUE);
 	if (gPasswordTimeout) {
@@ -63,6 +69,13 @@ AskConsolePwdInt(
 			break;
 		}
 
+		if (key.ScanCode == SCAN_F3) {
+			*retCode = AskPwdForcePass;
+			break;
+		}
+
+		// SCAN_F4
+
 		if (key.ScanCode == SCAN_F5) {
 			show = show ? 0 : 1;
 			if (count > 0) {
@@ -70,7 +83,10 @@ AskConsolePwdInt(
 					for (i = 0; i < count; i++) {
 						OUT_PRINT(L"\b");
 					}
-					OUT_PRINT(L"%a", asciiLine);
+					if (wide)
+						OUT_PRINT(L"%s", asciiLine);
+					else
+						OUT_PRINT(L"%a", asciiLine);
 				}
 				else {
 					for (i = 0; i < count; i++) {
@@ -84,6 +100,8 @@ AskConsolePwdInt(
 				}
 			}
 		}
+
+		// SCAN_F6
 
 		if (key.ScanCode == SCAN_F7) {
 			gPlatformLocked = gPlatformLocked ? 0 : 1;
@@ -99,6 +117,10 @@ AskConsolePwdInt(
 			gSCLocked = gSCLocked ? 0 : 1;
 			ConsoleShowTip(gSCLocked ? L" Smart card locked!" : L" Smart card unlocked!", 10000000);
 		}
+
+		// SCAN_F10
+		// SCAN_F11
+		// SCAN_F12
 
 		if (key.UnicodeChar == CHAR_CARRIAGE_RETURN) {
 			*retCode = AskPwdRetLogin;
@@ -121,7 +143,8 @@ AskConsolePwdInt(
 			if (gPasswordProgress || show) {
 				OUT_PRINT(L"\b \b");
 			}
-			if (asciiLine != NULL) asciiLine[--count] = '\0';
+			if (asciiLine != NULL) 
+				SET_VAR_CHAR(asciiLine, wide, --count, '\0'); //asciiLine[--count] = '\0';
 			continue;
 		}
 
@@ -134,17 +157,21 @@ AskConsolePwdInt(
 			}
 			// save char
 			if (asciiLine != NULL) {
-				asciiLine[count++] = (CHAR8)key.UnicodeChar;
-				asciiLine[count] = 0;
+				SET_VAR_CHAR(asciiLine, wide, count++, (CHAR8)key.UnicodeChar); //asciiLine[count++] = (CHAR8)key.UnicodeChar;
+				SET_VAR_CHAR(asciiLine, wide, count, '\0'); //asciiLine[count] = 0;
 			}
 		}
 	} while (key.UnicodeChar != CHAR_CARRIAGE_RETURN);
 
-	if (length != NULL) *length = count;
+	if (length != NULL) {
+		*length = count;
+		if (wide)
+			*length *= 2;
+	}
 	MEM_BURN (&key, sizeof (key));
 	// Set end of line
 	if (asciiLine != NULL) {
-		asciiLine[count] = '\0';
+		SET_VAR_CHAR(asciiLine, wide, count, '\0'); //asciiLine[count] = '\0';
 		if (gPasswordProgress || show) {
 			for (i = 0; i < count; i++) {
 				OUT_PRINT(L"\b \b");

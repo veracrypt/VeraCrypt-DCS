@@ -32,8 +32,6 @@ common\Volumes.c
 common\Volumes.h
 common\Xts.c
 common\Xts.h
-common\Xml.c
-common\Xml.h
 crypto\Aes.h
 crypto\Aeskey.c
 crypto\Aesopt.h
@@ -62,9 +60,8 @@ crypto\Camellia.c
 crypto\Camellia.h
 crypto\cpu.c
 crypto\cpu.h
-DcsConfig.c
-DcsConfig.h
 DcsVeraCrypt.c
+DcsVeraCryptImpl.c
 DcsVeraCrypt.h
 
 [Sources.X64]

@@ -1,8 +1,8 @@
 /** @file
-Block R/W interceptor
+Library for DCS Block R/W interceptor
 
 Copyright (c) 2016. Disk Cryptography Services for EFI (DCS), Alex Kolotnikov
-Copyright (c) 2016. VeraCrypt, Mounir IDRASSI 
+Copyright (c) 2019. DiskCryptor, David Xanatos
 
 This program and the accompanying materials
 are licensed and made available under the terms and conditions
@@ -12,43 +12,128 @@ The full text of the license may be found at
 https://opensource.org/licenses/LGPL-3.0
 **/
 
-#include "DcsInt.h"
-#include <Protocol/ComponentName.h>
+#ifndef __DCSINTLIB_H__
+#define __DCSINTLIB_H__
+
+#include <Uefi.h>
+#include <Protocol/BlockIo.h>
 #include <Protocol/ComponentName2.h>
-#include <Library/UefiLib.h>
+#include <Protocol/ComponentName.h>
+#include <Protocol/DriverBinding.h>
+
+#define DCSINT_DRIVER_VERSION 1
+#define DCS_SIGNATURE_16(A, B)        ((A) | (B << 8))
+#define DCS_SIGNATURE_32(A, B, C, D)  (DCS_SIGNATURE_16 (A, B) | (DCS_SIGNATURE_16 (C, D) << 16))
+
+#define DCSINT_BLOCK_IO_SIGN DCS_SIGNATURE_32('D','C','S', 'I')
+
+extern EFI_COMPONENT_NAME_PROTOCOL  gDcsIntComponentName;
+extern EFI_COMPONENT_NAME2_PROTOCOL gDcsIntComponentName2;
+
+typedef struct _DCSINT_MOUNT  DCSINT_MOUNT, *PDCSINT_MOUNT;
+
+typedef struct _DCSINT_MOUNT
+{
+   EFI_DEVICE_PATH            *DevicePath;
+
+   EFI_BLOCK_READ             FilterRead;
+   EFI_BLOCK_WRITE            FilterWrite;
+   VOID                       *FilterParams;
+	
+   DCSINT_MOUNT               *Next;
+
+} DCSINT_MOUNT, *PDCSINT_MOUNT;
+
+typedef struct _DCSINT_BLOCK_IO  DCSINT_BLOCK_IO, *PDCSINT_BLOCK_IO;
+
+typedef struct _DCSINT_BLOCK_IO {
+   UINT32                     Sign;
+   EFI_HANDLE                 Controller;
+
+   EFI_BLOCK_IO_PROTOCOL      *BlockIo;
+   EFI_BLOCK_READ             LowRead;
+   EFI_BLOCK_WRITE            LowWrite;
+   //UINT32                     IsReinstalled;
+   VOID                       *FilterParams;
+
+   DCSINT_BLOCK_IO*           Next;
+} DCSINT_BLOCK_IO, *PDCSINT_BLOCK_IO;
 
 //
-// EFI Component Name Protocol
+// Functions for Driver Binding Protocol
 //
-GLOBAL_REMOVE_IF_UNREFERENCED EFI_COMPONENT_NAME_PROTOCOL  gDcsIntComponentName = {
-  DcsIntComponentNameGetDriverName,
-  DcsIntComponentNameGetControllerName,
-  "eng"
-};
+
+/**
+  Check whether the controller is a supported.
+
+  @param  This                   The driver binding protocol.
+  @param  Controller             The controller handle to check.
+  @param  RemainingDevicePath    The remaining device path.
+
+  @retval EFI_SUCCESS            The driver supports this controller.
+  @retval other                  This device isn't supported.
+
+**/
+EFI_STATUS
+EFIAPI
+DcsIntBindingSupported (
+  IN EFI_DRIVER_BINDING_PROTOCOL  *This,
+  IN EFI_HANDLE                   Controller,
+  IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath
+  );
+
+/**
+  Starts the BlockIo device with this driver.
+
+  @param  This                  The driver binding protocol.
+  @param  Controller            The Block MMIO device to start on
+  @param  RemainingDevicePath   The remaining device path.
+
+  @retval EFI_SUCCESS           This driver supports this device.
+  @retval EFI_UNSUPPORTED       This driver does not support this device.
+  @retval EFI_DEVICE_ERROR      This driver cannot be started due to device Error.
+  @retval EFI_OUT_OF_RESOURCES  Can't allocate memory resources.
+  @retval EFI_ALREADY_STARTED   This driver has been started.
+
+**/
+EFI_STATUS
+EFIAPI
+DcsIntBindingStart (
+  IN EFI_DRIVER_BINDING_PROTOCOL  *This,
+  IN EFI_HANDLE                   Controller,
+  IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath
+  );
+
+/**
+  Stop controlling the device.
+
+  @param  This                   The driver binding
+  @param  Controller             The device controller controlled by the driver.
+  @param  NumberOfChildren       The number of children of this device
+  @param  ChildHandleBuffer      The buffer of children handle.
+
+  @retval EFI_SUCCESS            The driver stopped from controlling the device.
+  @retval EFI_DEVICE_ERROR       The device could not be stopped due to a device error.
+  @retval EFI_UNSUPPORTED        Block I/O Protocol is not installed on Controller.
+  @retval Others                 Failed to stop the driver
+
+**/
+EFI_STATUS
+EFIAPI
+DcsIntBindingStop (
+  IN  EFI_DRIVER_BINDING_PROTOCOL *This,
+  IN  EFI_HANDLE                  Controller,
+  IN  UINTN                       NumberOfChildren,
+  IN  EFI_HANDLE                  *ChildHandleBuffer
+  );
 
 //
-// EFI Component Name 2 Protocol
+// Functions for Block I/O Protocol
 //
-GLOBAL_REMOVE_IF_UNREFERENCED EFI_COMPONENT_NAME2_PROTOCOL gDcsIntComponentName2 = {
-  (EFI_COMPONENT_NAME2_GET_DRIVER_NAME) DcsIntComponentNameGetDriverName,
-  (EFI_COMPONENT_NAME2_GET_CONTROLLER_NAME) DcsIntComponentNameGetControllerName,
-  "en"
-};
 
 //
-// Driver name table for module.
-// It is shared by the implementation of ComponentName & ComponentName2 Protocol.
+// EFI Component Name Functions
 //
-GLOBAL_REMOVE_IF_UNREFERENCED EFI_UNICODE_STRING_TABLE mDcsIntComponentNameDriverNameTable[] = {
-  {
-     "eng;en", 
-     (CHAR16 *)L"DCSINT Driver"
-  },
-  {
-     NULL,
-     NULL
-  }
-};
 
 /**
   Retrieves a Unicode string that is the user readable name of the driver.
@@ -90,16 +175,7 @@ DcsIntComponentNameGetDriverName (
   IN  EFI_COMPONENT_NAME_PROTOCOL  *This,
   IN  CHAR8                        *Language,
   OUT CHAR16                       **DriverName
-  )
-{
-  return LookupUnicodeString2 (
-           Language,
-           This->SupportedLanguages,
-           mDcsIntComponentNameDriverNameTable,
-           DriverName,
-           (BOOLEAN)(This == &gDcsIntComponentName)
-           );
-}
+  );
 
 /**
   Retrieves a Unicode string that is the user readable name of the controller
@@ -167,7 +243,58 @@ DcsIntComponentNameGetControllerName (
   IN  EFI_HANDLE                                      ChildHandle        OPTIONAL,
   IN  CHAR8                                           *Language,
   OUT CHAR16                                          **ControllerName
-  )
-{
-  return EFI_UNSUPPORTED;
-}
+  );
+
+/**
+  Adds a crypto mount point for a given device path
+
+  @param[in] DevicePath         Device path
+  @param[in] FilterRead         pointer to the reader function
+  @param[in] FilterWrite        pointer to the writer function
+  @param[in] FilterParams       pointer to a custom parameter object as needed by the reader/writer
+
+  @retval EFI_SUCCESS           Success;
+  @retval EFI_OUT_OF_RESOURCES  Memory full;
+
+**/
+EFI_STATUS
+AddCryptoMount(
+  IN EFI_DEVICE_PATH* DevicePath,
+  IN EFI_BLOCK_READ	  FilterRead,
+  IN EFI_BLOCK_WRITE  FilterWrite,
+  IN VOID*			  FilterParams
+  );
+
+/**
+  Retrives a DCSINT_BLOCK_IO for given protocol
+
+  @param[in] protocol       protocol to retrive the DCSINT_BLOCK_IO for
+
+  @retval DCSINT_BLOCK_IO   found entry
+
+**/
+DCSINT_BLOCK_IO*
+GetBlockIoByProtocol(
+  IN EFI_BLOCK_IO_PROTOCOL* protocol
+  );
+
+/**
+  Install the block I/O filter
+
+  @param[in] ImageHandle    The firmware allocated handle for the EFI image.
+  @param[in] SystemTable    A pointer to the EFI System Table.
+
+  @retval EFI_SUCCESS       The hook was installed successfully.
+  @retval other             failed to install hook
+
+**/
+EFI_STATUS
+DscInstallHook(
+  IN EFI_HANDLE ImageHandle,
+  IN EFI_SYSTEM_TABLE *SystemTable
+  );
+
+
+
+#endif
+

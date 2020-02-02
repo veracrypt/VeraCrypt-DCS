@@ -26,6 +26,7 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Library/GraphLib.h>
 #include <Library/PasswordLib.h>
 #include <Library/DcsCfgLib.h>
+#include <DcsConfig.h>
 
 #include "common/Tcdefs.h"
 #include "common/Endian.h"
@@ -924,7 +925,7 @@ OSDecrypt()
 	return res;
 }
 
-CHAR16* sOSKeyBackup = L"EFI\\VeraCrypt\\svh_bak";
+CHAR16* sOSKeyBackup = L"EFI\\" DCS_DIRECTORY L"\\svh_bak";
 // dirty import from GptEdit
 extern DCS_DISK_ENTRY_DISKID       DeDiskId;
 

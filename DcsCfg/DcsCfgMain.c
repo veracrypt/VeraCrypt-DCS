@@ -24,7 +24,8 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Guid/GlobalVariable.h>
 
 #include "DcsCfg.h"
-#include "Library/PasswordLib.h"
+#include <Library/PasswordLib.h>
+#include <DcsConfig.h>
 
 #include "common/Tcdefs.h"
 #include "crypto/cpu.h"
@@ -201,6 +202,7 @@ DcsCfgMain(
 
 	InitBio();
 	InitFS();
+	InitConfig(CONFIG_FILE_PATH);
 	DetectX86Features();
 
 	//

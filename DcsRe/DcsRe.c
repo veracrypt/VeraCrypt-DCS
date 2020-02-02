@@ -3,6 +3,7 @@
 
 Copyright (c) 2016. Disk Cryptography Services for EFI (DCS), Alex Kolotnikov
 Copyright (c) 2016. VeraCrypt, Mounir IDRASSI 
+Copyright (c) 2019. DiskCryptor, David Xanatos
 
 This program and the accompanying materials
 are licensed and made available under the terms and conditions
@@ -18,7 +19,7 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Library/DevicePathLib.h>
 #include <Library/BaseMemoryLib.h>
 #include <Guid/GlobalVariable.h>
-#include "common/Tcdefs.h"
+#include <DcsConfig.h>
 
 #ifdef _M_X64
 #define ARCHdot L"x64."
@@ -28,8 +29,10 @@ https://opensource.org/licenses/LGPL-3.0
 #define ARCHdotEFI L"IA32.efi"
 #endif
 
+#define NO_CONF_UTIL
+
 CONST CHAR8* g_szMsBootString = "bootmgfw.pdb";
-CONST CHAR16* g_szVcBootString = L"VeraCrypt";
+CONST CHAR16* g_szVcBootString = _T(DCS_CAPTION);
 
 //////////////////////////////////////////////////////////////////////////
 // Menu
@@ -118,11 +121,20 @@ ActionShell(IN VOID* ctx) {
 	return EfiExec(NULL, L"EFI\\Shell\\Shell.efi");
 }
 
+CHAR16* sRecoveryKey = OPT_EXTERN_KEY;
+CHAR16* sDcsBoot = L"EFI\\" DCS_DIRECTORY L"\\DcsBoot.efi";
+
+EFI_STATUS
+ActionDcsRecoveryBoot(IN VOID* ctx) {
+	EfiSetVar(L"DcsExecMode", NULL, sRecoveryKey, StrSize(sRecoveryKey), EFI_VARIABLE_BOOTSERVICE_ACCESS);
+	return EfiExec(gFileRootHandle, sDcsBoot);
+}
+
 EFI_STATUS
 ActionDcsBoot(IN VOID* ctx) {
 	SelectEfiVolume();
 	if (EfiBootVolume == NULL) return EFI_NOT_READY;
-	return EfiExec(gFSHandles[EfiBootVolumeIndex], L"EFI\\VeraCrypt\\DcsBoot.efi");
+	return EfiExec(gFSHandles[EfiBootVolumeIndex], sDcsBoot);
 }
 
 EFI_STATUS
@@ -165,11 +177,11 @@ ActionWindowsBoot(IN VOID* ctx) {
 }
 
 CHAR16* DcsBootBins[] = {
-	L"EFI\\VeraCrypt\\DcsBoot.efi",
-	L"EFI\\VeraCrypt\\DcsInt.dcs",
-	L"EFI\\VeraCrypt\\DcsBml.dcs",
-	L"EFI\\VeraCrypt\\DcsCfg.dcs",
-	L"EFI\\VeraCrypt\\LegacySpeaker.dcs"
+	L"EFI\\" DCS_DIRECTORY L"\\DcsBoot.efi",
+	L"EFI\\" DCS_DIRECTORY L"\\DcsInt.dcs",
+	L"EFI\\" DCS_DIRECTORY L"\\DcsBml.dcs",
+	L"EFI\\" DCS_DIRECTORY L"\\DcsCfg.dcs",
+	L"EFI\\" DCS_DIRECTORY L"\\LegacySpeaker.dcs"
 };
 
 /**
@@ -182,12 +194,15 @@ ActionRestoreDcsLoader(IN VOID* ctx) {
 	SelectEfiVolume();
 	if (EfiBootVolume == NULL) return EFI_NOT_READY;
 	
-	DirectoryCreate (EfiBootVolume, L"EFI\\VeraCrypt");
+	DirectoryCreate (EfiBootVolume, L"EFI\\" DCS_DIRECTORY);
 	
 	for (i = 0; i < sizeof(DcsBootBins) / sizeof(CHAR16*); ++i) {
 		res = FileCopy(NULL, DcsBootBins[i], EfiBootVolume, DcsBootBins[i], 1024 * 1024);
 		if (EFI_ERROR(res)) return res;
 	}
+
+	if (!AskConfirm("Do you want to replace the default windows loader with the " DCS_CAPTION " one? [N]", 1)) goto done;
+
 	/* restore standard boot file */
 	if (!EFI_ERROR(FileExist(EfiBootVolume, L"EFI\\Boot\\boot" ARCHdotEFI)))
 	{
@@ -201,11 +216,11 @@ ActionRestoreDcsLoader(IN VOID* ctx) {
 			{
 				res = FileCopy(EfiBootVolume, L"EFI\\Boot\\boot" ARCHdotEFI, EfiBootVolume, L"\\EFI\\Boot\\original_boot" ARCHdot L"vc_backup", 1024 * 1024);
 				if (!EFI_ERROR(res))
-					res = FileCopy(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi", EfiBootVolume, L"EFI\\Boot\\boot" ARCHdotEFI, 1024 * 1024);				
+					res = FileCopy(NULL, L"EFI\\" DCS_DIRECTORY L"\\DcsBoot.efi", EfiBootVolume, L"EFI\\Boot\\boot" ARCHdotEFI, 1024 * 1024);				
 			}
 			else if ((fileSize <= 32768) && !EFI_ERROR(MemoryHasPattern(fileData, fileSize, g_szVcBootString, StrLen (g_szVcBootString) * 2)))
 			{
-				res = FileCopy(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi", EfiBootVolume, L"EFI\\Boot\\boot" ARCHdotEFI, 1024 * 1024);
+				res = FileCopy(NULL, L"EFI\\" DCS_DIRECTORY L"\\DcsBoot.efi", EfiBootVolume, L"EFI\\Boot\\boot" ARCHdotEFI, 1024 * 1024);
 			}
 			MEM_FREE(fileData);
 			
@@ -214,7 +229,7 @@ ActionRestoreDcsLoader(IN VOID* ctx) {
 	}
 	else if (!EFI_ERROR(FileExist(EfiBootVolume, L"\\EFI\\Boot\\original_boot" ARCHdot L"vc_backup")))
 	{
-		res = FileCopy(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi", EfiBootVolume, L"EFI\\Boot\\boot" ARCHdotEFI, 1024 * 1024);
+		res = FileCopy(NULL, L"EFI\\" DCS_DIRECTORY L"\\DcsBoot.efi", EfiBootVolume, L"EFI\\Boot\\boot" ARCHdotEFI, 1024 * 1024);
 		if (EFI_ERROR(res)) return res;
 	}
 	
@@ -236,22 +251,23 @@ ActionRestoreDcsLoader(IN VOID* ctx) {
 			if (EFI_ERROR(res)) return res;
 		}
 
-		res = FileCopy(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi", EfiBootVolume, L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi", 1024 * 1024);
+		res = FileCopy(NULL, L"EFI\\" DCS_DIRECTORY L"\\DcsBoot.efi", EfiBootVolume, L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi", 1024 * 1024);
 		if (EFI_ERROR(res)) return res;
 	}
 	else if (!EFI_ERROR(FileExist(EfiBootVolume, L"\\EFI\\Microsoft\\Boot\\bootmgfw_ms.vc")))		
 	{
-		res = FileCopy(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi", EfiBootVolume, L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi", 1024 * 1024);
+		res = FileCopy(NULL, L"EFI\\" DCS_DIRECTORY L"\\DcsBoot.efi", EfiBootVolume, L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi", 1024 * 1024);
 		if (EFI_ERROR(res)) return res;
 	}
-	
-	OUT_PRINT (L"\nVeraCrypt Loader restored to disk successfully\n\n");
+
+done:
+	OUT_PRINT (L"\n" _T(DCS_CAPTION) L" Loader restored to disk successfully\n\n");
 	
 	return EFI_SUCCESS;
 }
 
-CHAR16* sDcsBootEfi = L"EFI\\VeraCrypt\\DcsBoot.efi";
-CHAR16* sDcsBootEfiDesc = L"VeraCrypt(DCS) loader";
+CHAR16* sDcsBootEfi = L"EFI\\" DCS_DIRECTORY L"\\DcsBoot.efi";
+CHAR16* sDcsBootEfiDesc = _T(DCS_CAPTION) L"(DCS) loader";
 /**
 Update boot menu
 */
@@ -284,29 +300,31 @@ EFI_STATUS
 ActionRestoreDcsProp(IN VOID* ctx) {
 	SelectEfiVolume();
 	if (EfiBootVolume == NULL) return EFI_NOT_READY;
-	return FileCopy(NULL, L"EFI\\VeraCrypt\\DcsProp", EfiBootVolume, L"EFI\\VeraCrypt\\DcsProp", 1024*1024);
+	return FileCopy(NULL, L"EFI\\" DCS_DIRECTORY L"\\DcsProp", EfiBootVolume, L"EFI\\" DCS_DIRECTORY L"\\DcsProp", 1024*1024);
 }
+
+#ifndef NO_CONF_UTIL
 
 #define OPT_OS_DECRYPT L"-osdecrypt"
 #define OPT_OS_RESTORE_KEY L"-osrestorekey"
 
 CHAR16* sOSDecrypt = OPT_OS_DECRYPT;
 CHAR16* sOSRestoreKey = OPT_OS_RESTORE_KEY;
-CHAR16* sDcsCfg = L"EFI\\VeraCrypt\\DcsCfg.dcs";
+CHAR16* sDcsCfg = L"EFI\\" DCS_DIRECTORY L"\\DcsCfg.dcs";
 
 EFI_STATUS
 ActionRestoreHeader(IN VOID* ctx) {
-	EFI_STATUS res = EFI_NOT_READY;
-	res = EfiSetVar(L"dcscfgcmd", NULL, sOSRestoreKey, StrSize(sOSRestoreKey), EFI_VARIABLE_BOOTSERVICE_ACCESS);
+	EfiSetVar(L"dcscfgcmd", NULL, sOSRestoreKey, StrSize(sOSRestoreKey), EFI_VARIABLE_BOOTSERVICE_ACCESS);
 	return EfiExec(NULL, sDcsCfg);
 }
 
 EFI_STATUS
 ActionDecryptOS(IN VOID* ctx) {
-	EFI_STATUS res = EFI_NOT_READY;
-	res = EfiSetVar(L"dcscfgcmd", NULL, sOSDecrypt, StrSize(sOSDecrypt), EFI_VARIABLE_BOOTSERVICE_ACCESS);
+	EfiSetVar(L"dcscfgcmd", NULL, sOSDecrypt, StrSize(sOSDecrypt), EFI_VARIABLE_BOOTSERVICE_ACCESS);
 	return EfiExec(NULL, sDcsCfg);
 }
+
+#endif
 
 EFI_STATUS
 ActionExit(IN VOID* ctx) {
@@ -317,7 +335,7 @@ ActionExit(IN VOID* ctx) {
 EFI_STATUS
 ActionHelp(IN VOID* ctx) {
 OUT_PRINT(L"\
-%HRescue disk for VeraCrypt OS encryption%N\n\r\
+%HRescue disk for " _T(DCS_CAPTION) L" OS encryption%N\n\r\
 Help message to be defined\n\r\
 ");
 	return EFI_SUCCESS;
@@ -340,34 +358,45 @@ DcsReMain(
    IN EFI_SYSTEM_TABLE  *SystemTable
    )
 {
-   EFI_STATUS          res;
+	EFI_STATUS          res;
 	EFI_INPUT_KEY       key;
 	PMENU_ITEM          item = gMenu;
+
+#ifdef DEBUG_BUILD
+	OUT_PRINT(L"DcsRe - DEBUG Build %s %s\n", _T(__DATE__), _T(__TIME__)); 
+#endif
+
 	InitBio();
-   res = InitFS();
-   if (EFI_ERROR(res)) {
+	res = InitFS();
+	if (EFI_ERROR(res)) {
       ERR_PRINT(L"InitFS %r\n", res);
 		return res;
-   }
+	}
    
-	if (!EFI_ERROR(DirectoryExists(NULL, L"EFI\\VeraCrypt")))
+	if (!EFI_ERROR(DirectoryExists(NULL, L"EFI\\" DCS_DIRECTORY)))
 	{
-		item = DcsMenuAppend(NULL, L"Decrypt OS", 'd', ActionDecryptOS, NULL);
+		item = DcsMenuAppend(NULL, L"Boot " _T(DCS_CAPTION) L" loader from system disk", 'b', ActionDcsBoot, NULL);
 		gMenu = item;
-		item = DcsMenuAppend(item, L"Restore VeraCrypt loader to boot menu", 'm', ActionRestoreDcsBootMenu, NULL);
-		item = DcsMenuAppend(item, L"Remove VeraCrypt loader from boot menu", 'z' , ActionRemoveDcsBootMenu, NULL);
 
-		if (!EFI_ERROR(FileExist(NULL, L"EFI\\VeraCrypt\\DcsProp"))) {
-			item = DcsMenuAppend(item, L"Restore VeraCrypt loader configuration to system disk", 'c', ActionRestoreDcsProp, NULL);
+#ifndef NO_CONF_UTIL
+		item = DcsMenuAppend(item, L"Decrypt OS", 'd', ActionDecryptOS, NULL);
+#endif
+		item = DcsMenuAppend(item, L"Restore " _T(DCS_CAPTION) L" loader to boot menu", 'm', ActionRestoreDcsBootMenu, NULL);
+		item = DcsMenuAppend(item, L"Remove " _T(DCS_CAPTION) L" loader from boot menu", 'z' , ActionRemoveDcsBootMenu, NULL);
+
+		if (!EFI_ERROR(FileExist(NULL, L"EFI\\" DCS_DIRECTORY L"\\DcsProp"))) {
+			item = DcsMenuAppend(item, L"Restore " _T(DCS_CAPTION) L" loader configuration to system disk", 'c', ActionRestoreDcsProp, NULL);
 		}
 
-		if (!EFI_ERROR(FileExist(NULL, L"EFI\\VeraCrypt\\svh_bak"))) {
+#ifndef NO_CONF_UTIL
+		if (!EFI_ERROR(FileExist(NULL, L"EFI\\" DCS_DIRECTORY L"\\svh_bak"))) {
 			item = DcsMenuAppend(item, L"Restore OS header keys", 'k', ActionRestoreHeader, NULL);
 		}
+#endif
 
-		if (!EFI_ERROR(FileExist(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi"))) {
-			item = DcsMenuAppend(item, L"Restore VeraCrypt loader binaries to system disk", 'r', ActionRestoreDcsLoader, NULL);
-			item = DcsMenuAppend(item, L"Boot VeraCrypt loader from rescue disk", 'v', ActionDcsBoot, NULL);
+		if (!EFI_ERROR(FileExist(NULL, L"EFI\\" DCS_DIRECTORY L"\\DcsBoot.efi"))) {
+			item = DcsMenuAppend(item, L"Restore " _T(DCS_CAPTION) L" loader binaries to system disk", 'r', ActionRestoreDcsLoader, NULL);
+			item = DcsMenuAppend(item, L"Boot " _T(DCS_CAPTION) L" loader from rescue disk", 'v', ActionDcsRecoveryBoot, NULL);
 		}
 		
 		item = DcsMenuAppend(item, L"Boot Original Windows Loader", 'o', ActionWindowsBoot, NULL);
@@ -382,7 +411,7 @@ DcsReMain(
 
 		item = DcsMenuAppend(item, L"Help", 'h', ActionHelp, NULL);
 		item = DcsMenuAppend(item, L"Exit", 'e', ActionExit, NULL);
-		OUT_PRINT(L"%V%a rescue disk %a%N\n", TC_APP_NAME, VERSION_STRING);
+		OUT_PRINT(L"%V" _T(DCS_CAPTION) L" rescue disk %d.%02d%N\n", DCS_VERSION / 100, DCS_VERSION % 100);
 		gBS->SetWatchdogTimer(0, 0, 0, NULL);
 		do {
 			DcsMenuPrint(gMenu);
@@ -405,7 +434,7 @@ DcsReMain(
 	}
 	else
 	{
-		/* No VeraCrypt folder. Boot directly from the hard drive */
+		/* No DCS folder. Boot directly from the hard drive */
 		res = ActionDcsBoot (NULL);
 		if (EFI_ERROR(res)) {
 			ERR_PRINT(L"%r\n", res);

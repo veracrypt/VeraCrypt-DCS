@@ -25,4 +25,5 @@
 -- Added support for DiskCryptor in DiskCryptorLib
 -- Added mechanism to select Disk Encryption support modules VeraCrypt/DiskCryptor
 
-- Fixed a few minor bugs...
+- Fixed data leak when HaltPrint gets triggered to clean bootParams in addition to all other sensitiv data
+- Fied memory leek in VCCONFIG_ALLOC

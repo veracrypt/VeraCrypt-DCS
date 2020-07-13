@@ -97,6 +97,10 @@ CleanSensitiveData()
 	if (SecRegionData != NULL) {
 		MEM_BURN(SecRegionData, SecRegionSize);
 	}
+	
+	if (bootParams != NULL) {
+		MEM_BURN(bootParams, sizeof(*bootParams));
+	}
 
 	if (gAutoPassword != NULL) {
 		MEM_BURN(gAutoPassword, MAX_PASSWORD);

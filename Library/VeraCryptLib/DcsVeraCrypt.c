@@ -89,7 +89,7 @@ CHAR8* gOnExitCancelled = NULL;
 /////////////////////////////////////////////////////////////////////////
 
 #define VCCONFIG_ALLOC(data, size)       \
-        if(data == NULL) MEM_FREE(data); \
+        if(data != NULL) MEM_FREE(data); \
         data = MEM_ALLOC(size);
 
 VOID

@@ -150,6 +150,7 @@ VCAuthLoadConfig()
 	gPasswordVisible = (UINT8)ConfigReadInt("AuthorizeVisible", 0);   // show chars
 	gPasswordShowMark = ConfigReadInt("AuthorizeMarkTouch", 1);       // show touch points
 	gPasswordTimeout = (UINT8)ConfigReadInt("PasswordTimeout", 180);   // If no password for <seconds> => <ESC>
+	gKeyboardInputDelay = (UINTN)ConfigReadInt("KeyboardInputDelay", 100); // minimum number of ms between two valid key strokes, anything between is discarded
 
 	gDcsBootForce = ConfigReadInt("DcsBootForce", 1);                 // Ask password even if no USB marked found. 
 

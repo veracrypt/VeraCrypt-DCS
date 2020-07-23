@@ -32,6 +32,7 @@ UINT8		gPasswordVisible = 0;
 int		gPasswordShowMark = 1;
 UINT8		gPasswordProgress = 1;
 int		gPasswordTimeout = 0;
+UINTN     gKeyboardInputDelay = 100;
 
 int		gPlatformLocked = 0;
 int		gTPMLocked = 0;

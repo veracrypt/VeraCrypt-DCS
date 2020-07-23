@@ -50,8 +50,9 @@ AskConsolePwdInt(
 
 	do {
 		key = GetKey();
-		// Remove dirty chars 0.1s
-		FlushInputDelay(100000);
+		// Remove dirty chars
+		if (gKeyboardInputDelay)
+			FlushInputDelay(gKeyboardInputDelay * 1000);
 		
 		if (key.ScanCode == SCAN_ESC) {
 			*retCode = AskPwdRetCancel;

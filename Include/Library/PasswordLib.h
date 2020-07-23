@@ -25,6 +25,7 @@ extern UINTN	gPasswordPictureCharsLen;
 extern UINT8	gPasswordVisible;
 extern UINT8	gPasswordProgress;
 extern int		gPasswordTimeout;
+extern UINTN	gKeyboardInputDelay;
 
 extern int		gPasswordShowMark;
 extern VOID*	gPictPwdBmp;

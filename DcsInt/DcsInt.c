@@ -84,7 +84,7 @@ UINTN                   SecRegionOffset = 0;
 PCRYPTO_INFO            SecRegionCryptInfo = NULL;
 
 VOID
-CleanSensitiveData()
+CleanSensitiveData(BOOLEAN bClearBootParams)
 {
 	if (SecRegionCryptInfo != NULL) {
 		MEM_BURN(SecRegionCryptInfo, sizeof(*SecRegionCryptInfo));
@@ -98,7 +98,7 @@ CleanSensitiveData()
 		MEM_BURN(SecRegionData, SecRegionSize);
 	}
 	
-	if (bootParams != NULL) {
+	if (bootParams != NULL && bClearBootParams) {
 		MEM_BURN(bootParams, sizeof(*bootParams));
 	}
 
@@ -109,7 +109,7 @@ CleanSensitiveData()
 
 void HaltPrint(const CHAR16* Msg)
 {
-	CleanSensitiveData();
+	CleanSensitiveData(TRUE);
 	Print(L"%s - system Halted\n", Msg);
 	EfiCpuHalt();
 }
@@ -642,7 +642,7 @@ SecRegionChangePwd() {
 		if (key.UnicodeChar == 'r') {
 			MEM_BURN(&newPassword, sizeof(newPassword));
 			MEM_BURN(&confirmPassword, sizeof(confirmPassword));
-			CleanSensitiveData();
+			CleanSensitiveData(TRUE);
 			gST->RuntimeServices->ResetSystem(EfiResetCold, EFI_SUCCESS, 0, NULL);
 		}
 	}
@@ -893,7 +893,7 @@ OnExit(
 	
 	if (EFI_ERROR(retValue))
 	{
-		CleanSensitiveData();
+		CleanSensitiveData(TRUE);
 	}
 	
 	if (action == NULL) return retValue;
@@ -954,7 +954,7 @@ OnExit(
 			res = EfiFindPartByGUID(guid, &h);
 			if (EFI_ERROR(res)) {
 				ERR_PRINT(L"\nCan't find start partition\n");
-				CleanSensitiveData();
+				CleanSensitiveData(TRUE);
 				retValue = EFI_DCS_HALT_REQUESTED;
 				goto exit;
 			}
@@ -963,14 +963,14 @@ OnExit(
 				res = EfiExec(h, fileStr);
 				if (EFI_ERROR(res)) {
 					ERR_PRINT(L"\nStart %s - %r\n", fileStr, res);
-					CleanSensitiveData();
+					CleanSensitiveData(TRUE);
 					retValue = EFI_DCS_HALT_REQUESTED;
 					goto exit;
 				}
 			}
 			else {
 				ERR_PRINT(L"\nNo EFI execution path specified. Halting!\n");
-				CleanSensitiveData();
+				CleanSensitiveData(TRUE);
 				retValue = EFI_DCS_HALT_REQUESTED;
 				goto exit;
 			}
@@ -1020,7 +1020,7 @@ VirtualNotifyEvent(
 	)
 {
 	// Clean all sensible info and keys before transfer to OS
-	CleanSensitiveData();
+	CleanSensitiveData(FALSE);
 }
 
 //////////////////////////////////////////////////////////////////////////

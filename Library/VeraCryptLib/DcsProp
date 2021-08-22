@@ -6,7 +6,7 @@
          0 - text message is displayed
          PasswordMsg to specify message
          1 - touch picture password if touch is supported by EFI. check PlatformInfo
-         PasswordPicture to specify bitmap
+         PasswordPicture to specify bitmap (only support BITMAPINFOHEADER format)
     -->
     <config key="PasswordType">0</config>
     <config key="PasswordMsg">Password:</config>

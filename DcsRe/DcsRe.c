@@ -154,6 +154,15 @@ ActionWindowsBoot(IN VOID* ctx) {
 				if (bFound)
 					return EfiExec(gFSHandles[EfiBootVolumeIndex], L"EFI\\Microsoft\\Boot\\bootmgfw.efi");
 			}
+			
+			/* copy our backup copy and then boot from it*/
+			if (!EFI_ERROR(FileExist(NULL, L"\\EFI\\Boot\\original_boot" ARCHdot L"vc_backup")))
+			{
+				if (!EFI_ERROR(FileCopy(NULL, L"\\EFI\\Boot\\original_boot" ARCHdot L"vc_backup", EfiBootVolume, L"EFI\\Microsoft\\Boot\\bootmgfw_ms.vc", 1024 * 1024)))
+				{
+					return EfiExec(gFSHandles[EfiBootVolumeIndex], L"EFI\\Microsoft\\Boot\\bootmgfw_ms.vc");
+				}
+			}
 
 			ERR_PRINT(L"Could not find the original Windows loader\r\n");
 			

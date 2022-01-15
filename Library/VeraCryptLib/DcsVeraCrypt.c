@@ -338,7 +338,7 @@ VCAskPwd(
 			gAutoLogin = 0;
 			gAuthPwdCode = AskPwdRetLogin;
 			vcPwd->Length = (unsigned int)strlen(gAutoPassword);
-			strcpy(vcPwd->Text, gAutoPassword);
+			AsciiStrCpyS(vcPwd->Text, sizeof(vcPwd->Text), gAutoPassword);
 		}
 		else {
 			if (gAuthPasswordType == 1 &&

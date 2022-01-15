@@ -60,7 +60,7 @@ AskEA() {
 	CHAR16 name[128];
 	for (ea = EAGetFirst(); ea != 0; ea = EAGetNext(ea))
 	{
-		EAGetName(name, ea, 1);
+		EAGetName(name, 128, ea, 1);
 		OUT_PRINT(L"(%d) %s\n", ea, name);
 	}
 	ea = (int)AskUINTN(":", EAGetFirst());

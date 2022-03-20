@@ -42,8 +42,11 @@ crypto\Aestab.h
 crypto\Aes_hw_cpu.nasm
 crypto\Aes_hw_cpu.h
 crypto\config.h
-crypto\Rmd160.c
-crypto\Rmd160.h
+crypto\blake2s.c
+crypto\blake2s_SSE2.c
+crypto\blake2s_SSE41.c
+crypto\blake2s_SSSE3.c
+crypto\blake2.h
 crypto\Serpent.c
 crypto\Serpent.h
 crypto\Sha2.c
@@ -52,8 +55,6 @@ crypto\Twofish.c
 crypto\Twofish.h
 crypto\Whirlpool.c
 crypto\Whirlpool.h
-crypto\GostCipher.c
-crypto\GostCipher.h
 crypto\Streebog.c
 crypto\Streebog.h
 crypto\kuznyechik.c
@@ -69,7 +70,6 @@ DcsVeraCrypt.h
 
 [Sources.X64]
 crypto\Aes_x64.nasm
-crypto\Gost89_x64.nasm
 
 [Sources.IA32]
 llmath.c

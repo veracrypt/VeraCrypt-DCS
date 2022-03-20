@@ -41,9 +41,6 @@ call :create_link common\Xts.c
 call :create_link common\Xts.h
 
 if NOT EXIST crypto mkdir crypto
-call :create_link crypto\GostCipher.c
-call :create_link crypto\GostCipher.h
-call :create_link crypto\Gost89_x64.asm Gost89_x64.nasm
 call :create_link crypto\Streebog.c
 call :create_link crypto\Streebog.h
 call :create_link crypto\kuznyechik.c
@@ -61,8 +58,15 @@ call :create_link crypto\cpu.h
 call :create_link crypto\cpu.c
 call :create_link crypto\config.h
 call :create_link crypto\misc.h
-call :create_link crypto\Rmd160.c
-call :create_link crypto\Rmd160.h
+call :create_link crypto\blake2s.c
+call :create_link crypto\blake2.h
+call :create_link crypto\blake2-impl.h
+call :create_link crypto\blake2s_SSE2.c
+call :create_link crypto\blake2s_SSE41.c
+call :create_link crypto\blake2s_SSSE3.c
+call :create_link crypto\blake2s-load-sse2.h
+call :create_link crypto\blake2s-load-sse41.h
+call :create_link crypto\blake2s-round.h
 call :create_link crypto\Serpent.c
 call :create_link crypto\Serpent.h
 call :create_link crypto\Sha2.c

@@ -86,6 +86,7 @@ https://opensource.org/licenses/LGPL-3.0
 #define OPT_WIPE							L"-wipe"
 
 #define OPT_OS_DECRYPT					L"-osdecrypt"
+#define OPT_OS_UNDECRYPT				L"-osundecrypt"
 #define OPT_OS_RESTORE_KEY				L"-osrestorekey"
 
 #define OPT_TPM_PCRS						L"-tpmpcrs"
@@ -157,6 +158,7 @@ STATIC CONST SHELL_PARAM_ITEM ParamList[] = {
 	{ OPT_SECREGION_DUMP,       TypeValue },
 	{ OPT_WIPE,                 TypeDoubleValue },
 	{ OPT_OS_DECRYPT,     TypeFlag },
+	{ OPT_OS_UNDECRYPT,   TypeFlag },
 	{ OPT_OS_RESTORE_KEY, TypeFlag },
 	{ OPT_OS_HIDE_PREP,   TypeFlag },
 	{ OPT_TPM_PCRS,       TypeDoubleValue },
@@ -215,6 +217,9 @@ DcsCfgMain(
 		if (StrStr(cmd, OPT_OS_DECRYPT) != NULL) {
 			return OSDecrypt();
 		}
+		if (StrStr(cmd, OPT_OS_UNDECRYPT) != NULL) {
+			return OSUndecrypt();
+		}
 		return EFI_INVALID_PARAMETER;
 	}
 
@@ -269,6 +274,10 @@ DcsCfgMain(
 	// Rescue
 	if (ShellCommandLineGetFlag(Package, OPT_OS_DECRYPT)) {
 		return OSDecrypt();
+	}
+
+	if (ShellCommandLineGetFlag(Package, OPT_OS_UNDECRYPT)) {
+		return OSUndecrypt();
 	}
 
 	if (ShellCommandLineGetFlag(Package, OPT_OS_RESTORE_KEY)) {

@@ -59,6 +59,9 @@ EFI_STATUS
 OSDecrypt();
 
 EFI_STATUS
+OSUndecrypt();
+
+EFI_STATUS
 VolumeChangePassword(
 	IN UINTN index);
 

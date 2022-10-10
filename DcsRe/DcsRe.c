@@ -297,9 +297,11 @@ ActionRestoreDcsProp(IN VOID* ctx) {
 }
 
 #define OPT_OS_DECRYPT L"-osdecrypt"
+#define OPT_OS_UNDECRYPT L"-osundecrypt"
 #define OPT_OS_RESTORE_KEY L"-osrestorekey"
 
 CHAR16* sOSDecrypt = OPT_OS_DECRYPT;
+CHAR16* sOSUndecrypt = OPT_OS_UNDECRYPT;
 CHAR16* sOSRestoreKey = OPT_OS_RESTORE_KEY;
 CHAR16* sDcsCfg = L"EFI\\VeraCrypt\\DcsCfg.dcs";
 
@@ -314,6 +316,13 @@ EFI_STATUS
 ActionDecryptOS(IN VOID* ctx) {
 	EFI_STATUS res = EFI_NOT_READY;
 	res = EfiSetVar(L"dcscfgcmd", NULL, sOSDecrypt, StrSize(sOSDecrypt), EFI_VARIABLE_BOOTSERVICE_ACCESS);
+	return EfiExec(NULL, sDcsCfg);
+}
+
+EFI_STATUS
+ActionUndecryptOS(IN VOID* ctx) {
+	EFI_STATUS res = EFI_NOT_READY;
+	res = EfiSetVar(L"dcscfgcmd", NULL, sOSUndecrypt, StrSize(sOSUndecrypt), EFI_VARIABLE_BOOTSERVICE_ACCESS);
 	return EfiExec(NULL, sDcsCfg);
 }
 

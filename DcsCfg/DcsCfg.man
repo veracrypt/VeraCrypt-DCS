@@ -75,6 +75,7 @@ DcsCfg -ds <BN> -wipe <start> <end>
 
 ** Rescue
  -osdecrypt - decrypt OS (rescue)
+ -osundecrypt - undecrypt OS (rescue)
  -osrestorekey - restore key (rescue)
 
 ** TPM

@@ -879,12 +879,12 @@ VolumeChangePassword(
 //////////////////////////////////////////////////////////////////////////
 
 EFI_STATUS
-OSDecrypt()
+_OSCrypt(BOOLEAN encrypt)
 {
 
 	EFI_STATUS              res;
 	UINTN                   disk;
-	BOOLEAN                 doDecrypt = FALSE;
+	BOOLEAN                 doCrypt = FALSE;
 	EFI_BLOCK_IO_PROTOCOL*  io;
 	if (gAuthPasswordMsg == NULL) {
 		VCAuthAsk();
@@ -899,20 +899,20 @@ OSDecrypt()
 		BioPrintDevicePath(disk);
 		res = TryHeaderDecrypt(Header, &gAuthCryptInfo, &gHeaderCryptInfo);
 		if (EFI_ERROR(res)) continue;
-		doDecrypt = TRUE;
+		doCrypt = TRUE;
 		break;
 	}
 
-	if (doDecrypt) {
-		if (!AskConfirm("Decrypt?", 1)) {
-			ERR_PRINT(L"Decryption stoped\n");
+	if (doCrypt) {
+		if (!AskConfirm(encrypt ? "Encrypt?" : "Decrypt?", 1)) {
+			ERR_PRINT(encrypt ? L"Encryption stopped\n" : L"Decryption stopped\n");
 			return EFI_INVALID_PARAMETER;
 		}
 		res = RangeCrypt(gBIOHandles[disk], 
 			gAuthCryptInfo->EncryptedAreaStart.Value >> 9, 
 			gAuthCryptInfo->VolumeSize.Value >> 9,
 			gAuthCryptInfo->EncryptedAreaLength.Value >> 9, 
-			gAuthCryptInfo, FALSE,
+			gAuthCryptInfo, encrypt,
 			gHeaderCryptInfo,
 			62);
 		crypto_close(gHeaderCryptInfo);
@@ -922,6 +922,18 @@ OSDecrypt()
 		res = EFI_NOT_FOUND;
 	}
 	return res;
+}
+
+EFI_STATUS
+OSDecrypt()
+{
+	return _OSCrypt(TRUE);
+}
+
+EFI_STATUS
+OSUndecrypt()
+{
+	return _OSCrypt(FALSE);
 }
 
 CHAR16* sOSKeyBackup = L"EFI\\VeraCrypt\\svh_bak";

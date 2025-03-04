@@ -178,7 +178,7 @@ PrepareBootParams(
 		bootArgs->DecoySystemPartitionStart = 0;
 		bootArgs->BootDriveSignature = bootDriveSignature;
 		bootArgs->Flags = (uint32)(gAuthPim << 16);
-		bootArgs->BootArgumentsCrc32 = GetCrc32((byte *)bootArgs, (int)((byte *)&bootArgs->BootArgumentsCrc32 - (byte *)bootArgs));
+		bootArgs->BootArgumentsCrc32 = GetCrc32((char *)bootArgs, (int)((char *)&bootArgs->BootArgumentsCrc32 - (char *)bootArgs));
 		bootParams->BootCryptoInfo.ea = (uint16)cryptoInfo->ea;
 		bootParams->BootCryptoInfo.mode = (uint16)cryptoInfo->mode;
 		bootParams->BootCryptoInfo.pkcs5 = (uint16)cryptoInfo->pkcs5;
@@ -707,7 +707,7 @@ SecRegionTryDecrypt()
 			}
 			// Try authorize zone
 			CopyMem(Header, SecRegionData + SecRegionOffset, 512);
-			vcres = ReadVolumeHeader(gAuthBoot, Header, &gAuthPassword, gAuthHash, gAuthPim, gAuthTc, &SecRegionCryptInfo, NULL);
+			vcres = ReadVolumeHeader(gAuthBoot, Header, &gAuthPassword, gAuthHash, gAuthPim, &SecRegionCryptInfo, NULL);
 		   SecRegionOffset += (vcres != 0) ? 1024 * 128 : 0;
 		} while (SecRegionOffset < SecRegionSize && vcres != 0);
 		if (vcres == 0) {

@@ -684,10 +684,16 @@ SecRegionTryDecrypt()
 	int          vcres = 1;
 	EFI_STATUS   res = EFI_SUCCESS;
 	int          retry = gAuthRetry;
+	BOOLEAN      firstPrompt = TRUE;
 	PlatformGetID(SecRegionHandle, &gPlatformKeyFile, &gPlatformKeyFileSize);
 
 	do {
 		SecRegionOffset = 0;
+		if (firstPrompt) {
+			// Some firmware leaves the text cursor at the screen edge before DcsInt starts.
+			(VOID)gST->ConOut->SetCursorPosition(gST->ConOut, 0, 0);
+			firstPrompt = FALSE;
+		}
 		VCAuthAsk();
 		if (gAuthPwdCode == AskPwdRetCancel) {
 			return EFI_DCS_USER_CANCELED;

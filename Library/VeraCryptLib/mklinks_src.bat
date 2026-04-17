@@ -59,7 +59,7 @@ call :create_link crypto\cpu.c
 call :create_link crypto\config.h
 call :create_link crypto\misc.h
 call :create_link crypto\blake2s.c
-call :create_link crypto\blake2.h
+call :create_link crypto\blake2s.h
 call :create_link crypto\blake2-impl.h
 call :create_link crypto\blake2s_SSE2.c
 call :create_link crypto\blake2s_SSE41.c

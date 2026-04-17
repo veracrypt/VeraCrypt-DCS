@@ -15,9 +15,12 @@
 [BuildOptions]
   GCC:*_UNIXGCC_*_CC_FLAGS             = -DMDEPKG_NDEBUG
   GCC:RELEASE_*_*_CC_FLAGS             = -DMDEPKG_NDEBUG
+  INTEL:*_*_*_CC_FLAGS                 = /DVC_DCS_DISABLE_ARGON2
   INTEL:RELEASE_*_*_CC_FLAGS           = /D MDEPKG_NDEBUG
+  MSFT:*_*_*_CC_FLAGS                  = /DVC_DCS_DISABLE_ARGON2
   MSFT:RELEASE_*_*_CC_FLAGS            = /D MDEPKG_NDEBUG
-  GCC:*_*_*_CC_FLAGS                   = -mno-mmx -mno-sse
+  MSFT:*_*_X64_GENFW_FLAGS             = --keepexceptiontable
+  GCC:*_*_*_CC_FLAGS                   = -DVC_DCS_DISABLE_ARGON2 -mno-mmx -mno-sse
 
 ################################################################################
 #

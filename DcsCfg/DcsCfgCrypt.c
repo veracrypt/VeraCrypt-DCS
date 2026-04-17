@@ -72,7 +72,7 @@ AskMode(int ea) {
 	int mode;
 	for (mode = EAGetFirstMode(ea); mode != 0; mode = EAGetNextMode(ea, mode))
 	{
-		EAGetModeName(ea, mode, 1);
+		EAGetModeName(mode);
 		OUT_PRINT(L"(%d) %s\n", mode, EAGetModeName(ea, mode, 1));
 	}
 	mode = (int)AskUINTN(":", EAGetFirstMode(ea));
@@ -115,7 +115,6 @@ TryHeaderDecrypt(
 		&gAuthPassword,
 		gAuthHash,
 		gAuthPim,
-		gAuthTc,
 		&cryptoInfo,
 		headerCryptoInfo);
 
@@ -426,7 +425,7 @@ RangeCrypt(
 	UINTN                   rd;
 	BOOL                    bIsSystemEncyption = FALSE;
 
-	if (info->noIterations == get_pkcs5_iteration_count (info->pkcs5, info->volumePim, FALSE, TRUE))
+	if (info->noIterations == get_pkcs5_iteration_count (info->pkcs5, info->volumePim, gAuthBoot))
 		bIsSystemEncyption = TRUE;
 
 	io = EfiGetBlockIO(disk);

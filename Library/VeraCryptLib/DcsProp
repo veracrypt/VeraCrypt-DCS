@@ -46,9 +46,11 @@
     Request PIM during authorization
     PimMsg - message
     Pim - default value
+    PimProgress - show "*" on each PIM key press. Defaults to AuthorizeProgress if not specified.
     -->
     <config key="PimMsg">Pim:</config>
     <config key="Pim">0</config>
+    <!-- config key="PimProgress">1</config -->
     <config key="PimRqt">1</config>
 
     <!-- HashRqt 0/1 

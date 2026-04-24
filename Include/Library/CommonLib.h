@@ -382,6 +382,15 @@ GetLine(
    UINTN    line_max,
    UINT8    show);
 
+VOID
+GetLineWithProgress(
+   UINTN    *length,
+   CHAR16   *line,
+   CHAR8    *asciiLine,
+   UINTN    line_max,
+   UINT8    show,
+   UINT8    progress);
+
 int
 AskAsciiString(
    CHAR8* prompt,
@@ -394,6 +403,12 @@ int
 AskInt(
    CHAR8* prompt,
    UINT8 visible);
+
+int
+AskIntWithProgress(
+   CHAR8* prompt,
+   UINT8 visible,
+   UINT8 progress);
 
 
 UINT8

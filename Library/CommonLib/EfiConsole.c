@@ -180,13 +180,14 @@ ConsoleShowTip(
 }
 
 
-VOID 
-GetLine (
-   UINTN    *length, 
-   CHAR16   *line, 
+VOID
+GetLineWithProgress (
+   UINTN    *length,
+   CHAR16   *line,
    CHAR8    *asciiLine,
    UINTN    line_max,
-   UINT8    show)
+   UINT8    show,
+   UINT8    progress)
 {
    EFI_INPUT_KEY key;
    UINT32 count = 0;
@@ -208,7 +209,9 @@ GetLine (
       if (count == 0 && key.UnicodeChar == CHAR_BACKSPACE) {
          continue;
       } else if (key.UnicodeChar == CHAR_BACKSPACE) {
-         OUT_PRINT(L"\b \b");
+         if (show || progress) {
+            OUT_PRINT(L"\b \b");
+         }
          if (line != NULL) line[--count] = '\0';
          if (asciiLine != NULL) asciiLine[--count] = '\0';
          continue;
@@ -219,7 +222,7 @@ GetLine (
          if (show) {
             OUT_PRINT(L"%c", key.UnicodeChar);
          }
-         else {
+         else if (progress) {
             OUT_PRINT(L"*");
          }
          // save char
@@ -233,6 +236,17 @@ GetLine (
    // Set end of line
    if (line != NULL) line[count] = '\0';
    if (asciiLine != NULL) asciiLine[count] = '\0';
+}
+
+VOID
+GetLine (
+   UINTN    *length,
+   CHAR16   *line,
+   CHAR8    *asciiLine,
+   UINTN    line_max,
+   UINT8    show)
+{
+   GetLineWithProgress(length, line, asciiLine, line_max, show, 1);
 }
 
 int
@@ -258,15 +272,24 @@ AskAsciiString(
 }
 
 int
-AskInt(
+AskIntWithProgress(
    CHAR8* prompt,
-   UINT8 visible)
+   UINT8 visible,
+   UINT8 progress)
 {
    CHAR16      buf[32];
    UINTN       len = 0;
 	OUT_PRINT(L"%a", prompt);
-	GetLine(&len, buf, NULL, sizeof(buf) / 2, visible);
+	GetLineWithProgress(&len, buf, NULL, sizeof(buf) / 2, visible, progress);
    return (UINT32)StrDecimalToUintn(buf);
+}
+
+int
+AskInt(
+   CHAR8* prompt,
+   UINT8 visible)
+{
+   return AskIntWithProgress(prompt, visible, 1);
 }
 
 UINT8

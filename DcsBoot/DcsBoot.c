@@ -2,7 +2,7 @@
   This is DCS boot loader application
 
 Copyright (c) 2016. Disk Cryptography Services for EFI (DCS), Alex Kolotnikov
-Copyright (c) 2016. VeraCrypt, Mounir IDRASSI 
+Copyright (c) 2016. VeraCrypt, Mounir IDRASSI
 
 This program and the accompanying materials
 are licensed and made available under the terms and conditions
@@ -30,9 +30,61 @@ CHAR16            *gEfiExecCmdMS = L"\\EFI\\Microsoft\\Boot\\Bootmgfw.efi";
 CHAR16            *gEfiExecCmd = NULL;
 CHAR8             gDoExecCmdMsg[256];
 CONST CHAR8* 	  g_szMsBootString = "bootmgfw.pdb";
+BOOLEAN           gRescueBoot = FALSE;
+EFI_GUID          *gRescueExecPartGuid = NULL;
+
+BOOLEAN
+IsRescueBoot()
+{
+	EFI_STATUS res;
+	UINTN len;
+	UINT32 attr;
+	UINT8 *flag = NULL;
+	BOOLEAN rescueBoot = FALSE;
+
+	res = EfiGetVar(DCS_RESCUE_BOOT_VAR, NULL, &flag, &len, &attr);
+	if (!EFI_ERROR(res) && flag != NULL && len >= sizeof(UINT8) && *flag != 0) {
+		rescueBoot = TRUE;
+	}
+	MEM_FREE(flag);
+	return rescueBoot;
+}
 
 EFI_STATUS
-DoExecCmd() 
+GetRescueExecPartGuid(EFI_GUID **partGuid)
+{
+	EFI_STATUS res;
+	UINTN len;
+	UINT32 attr;
+
+	if (partGuid == NULL) return EFI_INVALID_PARAMETER;
+	*partGuid = NULL;
+	res = EfiGetVar(DCS_RESCUE_EXEC_PART_GUID_VAR, NULL, partGuid, &len, &attr);
+	if (EFI_ERROR(res)) return res;
+	if (len != sizeof(EFI_GUID)) {
+		MEM_FREE(*partGuid);
+		*partGuid = NULL;
+		return EFI_CRC_ERROR;
+	}
+	return EFI_SUCCESS;
+}
+
+VOID
+ClearRescueBootVars()
+{
+	EfiSetVar(DCS_RESCUE_BOOT_VAR, NULL, NULL, 0, EFI_VARIABLE_BOOTSERVICE_ACCESS);
+	EfiSetVar(DCS_RESCUE_EXEC_PART_GUID_VAR, NULL, NULL, 0, EFI_VARIABLE_BOOTSERVICE_ACCESS);
+}
+
+VOID
+ClearDcsExecVars()
+{
+	EfiSetVar(L"DcsExecPartGuid", NULL, NULL, 0, EFI_VARIABLE_BOOTSERVICE_ACCESS);
+	EfiSetVar(L"DcsExecCmd", NULL, NULL, 0, EFI_VARIABLE_BOOTSERVICE_ACCESS);
+}
+
+EFI_STATUS
+DoExecCmd()
 {
 	EFI_STATUS          res;
 	gDoExecCmdMsg[0] = 0;
@@ -61,7 +113,7 @@ DoExecCmd()
 
 EFI_STATUS
 ExecMSWindowsLoader() {
-	
+
 	if (!EFI_ERROR(FileExist(NULL, gEfiExecCmdDefault)))
 		return EfiExec(NULL, gEfiExecCmdDefault);
 	else
@@ -79,17 +131,47 @@ ExecMSWindowsLoader() {
 					bFound = TRUE;
 				}
 			}
-			
+
 			MEM_FREE(fileData);
-			
+
 			if (bFound)
 				return EfiExec(NULL, gEfiExecCmdMS);
 		}
 
 		ERR_PRINT(L"Could not find the original Windows loader\r\n");
-		
+
 		return EFI_NOT_READY;
 	}
+}
+
+EFI_STATUS
+ExecMSWindowsLoaderFromPart(EFI_GUID *partGuid)
+{
+	EFI_STATUS res;
+	EFI_HANDLE oldRootHandle;
+	EFI_FILE *oldRoot;
+	EFI_HANDLE partHandle;
+	EFI_FILE *partRoot = NULL;
+
+	if (partGuid == NULL) return EFI_INVALID_PARAMETER;
+
+	oldRootHandle = gFileRootHandle;
+	oldRoot = gFileRoot;
+
+	res = EfiFindPartByGUID(partGuid, &partHandle);
+	if (EFI_ERROR(res)) return res;
+
+	res = FileOpenRoot(partHandle, &partRoot);
+	if (EFI_ERROR(res)) return res;
+
+	gFileRootHandle = partHandle;
+	gFileRoot = partRoot;
+	res = ExecMSWindowsLoader();
+	gFileRootHandle = oldRootHandle;
+	gFileRoot = oldRoot;
+
+	FileClose(partRoot);
+	return res;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -161,6 +243,7 @@ DcsBootMain(
 	BOOLEAN             searchOnESP = FALSE;
 	BOOLEAN             searchMsOnESP = FALSE;
 	EFI_GUID          *pEfiExecPartBackup = NULL;
+	EFI_GUID          *pDefaultExecPartGuid = &ImagePartGuid;
 //	EFI_INPUT_KEY       key;
 
 	InitBio();
@@ -177,11 +260,22 @@ DcsBootMain(
 
    UpdateDriverBmlStart();
 
+	gRescueBoot = IsRescueBoot();
+	if (gRescueBoot) {
+		res = GetRescueExecPartGuid(&gRescueExecPartGuid);
+		if (EFI_ERROR(res)) {
+			ERR_PRINT(L"\nRescue target partition %r\n", res);
+			ClearRescueBootVars();
+			return res;
+		}
+		pDefaultExecPartGuid = gRescueExecPartGuid;
+	}
+
 	// Try platform info
 	if (EFI_ERROR(FileExist(NULL, L"\\EFI\\VeraCrypt\\PlatformInfo")) &&
 		!EFI_ERROR(FileExist(NULL, L"\\EFI\\VeraCrypt\\DcsInfo.dcs"))) {
 		res = EfiExec(NULL, L"\\EFI\\VeraCrypt\\DcsInfo.dcs");
-		if (!EFI_ERROR(res) && 
+		if (!EFI_ERROR(res) &&
 			!EFI_ERROR(FileExist(NULL, L"\\EFI\\VeraCrypt\\PlatformInfo"))) {
 			gST->RuntimeServices->ResetSystem(EfiResetCold, EFI_SUCCESS, 0, NULL);
 		}
@@ -192,11 +286,14 @@ DcsBootMain(
 
 	res = EfiGetPartGUID(gFileRootHandle, &ImagePartGuid);
 	if (EFI_ERROR(res)) {
-		ERR_PRINT(L"\nStart partition %r\n", res);
-		return res;
+		if (!gRescueBoot) {
+			ERR_PRINT(L"\nStart partition %r\n", res);
+			return res;
+		}
+		ZeroMem(&ImagePartGuid, sizeof(ImagePartGuid));
 	}
 
-	EfiSetVar(L"DcsExecPartGuid", NULL, &ImagePartGuid, sizeof(EFI_GUID), EFI_VARIABLE_BOOTSERVICE_ACCESS);
+	EfiSetVar(L"DcsExecPartGuid", NULL, pDefaultExecPartGuid, sizeof(EFI_GUID), EFI_VARIABLE_BOOTSERVICE_ACCESS);
 	EfiSetVar(L"DcsExecCmd", NULL, gEfiExecCmdDefault, (StrLen(gEfiExecCmdDefault) + 1) * 2, EFI_VARIABLE_BOOTSERVICE_ACCESS);
 	// Authorize
 	gBS->SetWatchdogTimer(0, 0, 0, NULL);
@@ -204,8 +301,8 @@ DcsBootMain(
    if (EFI_ERROR(res) && (res != EFI_DCS_POSTEXEC_REQUESTED)) {
 
       // Clear DcsExecPartGuid before execute OS to avoid problem in VirtualBox with reboot.
-      EfiSetVar(L"DcsExecPartGuid", NULL, NULL, 0, EFI_VARIABLE_BOOTSERVICE_ACCESS);
-      EfiSetVar(L"DcsExecCmd", NULL, NULL, 0, EFI_VARIABLE_BOOTSERVICE_ACCESS);
+      ClearDcsExecVars();
+      ClearRescueBootVars();
       // ERR_PRINT(L"\nDcsInt.efi %r\n",res);
 	  if (res == EFI_DCS_SHUTDOWN_REQUESTED)
 	  {
@@ -224,7 +321,11 @@ DcsBootMain(
 	  else if (res == EFI_DCS_USER_CANCELED)
 	  {
 		  /* If user cancels password prompt, call original Windows loader */
-		  res = ExecMSWindowsLoader ();
+		  if (gRescueBoot && gRescueExecPartGuid != NULL) {
+			  res = ExecMSWindowsLoaderFromPart(gRescueExecPartGuid);
+		  } else {
+			  res = ExecMSWindowsLoader ();
+		  }
 	  }
       return res;
    }
@@ -233,7 +334,7 @@ DcsBootMain(
 	if (EFI_ERROR(res)) {
 		gEfiExecPartGuid = &ImagePartGuid;
 	}
-	
+
 	pEfiExecPartBackup = gEfiExecPartGuid;
 
 	res = EfiGetVar(L"DcsExecCmd", NULL, &gEfiExecCmd, &len, &attr);
@@ -243,13 +344,13 @@ DcsBootMain(
 
 	searchOnESP = CompareGuid(gEfiExecPartGuid, &ImagePartGuid) &&
 		EFI_ERROR(FileExist(NULL, gEfiExecCmd));
-		
+
 	searchMsOnESP = CompareGuid(gEfiExecPartGuid, &ImagePartGuid) &&
 		EFI_ERROR(FileExist(NULL, gEfiExecCmdMS));
 
     // Clear DcsExecPartGuid before execute OS to avoid problem in VirtualBox with reboot.
-    EfiSetVar(L"DcsExecPartGuid", NULL, NULL, 0, EFI_VARIABLE_BOOTSERVICE_ACCESS);
-    EfiSetVar(L"DcsExecCmd", NULL, NULL, 0, EFI_VARIABLE_BOOTSERVICE_ACCESS);
+    ClearDcsExecVars();
+    ClearRescueBootVars();
 
 	// Find new start partition
     ConnectAllEfi();
@@ -285,7 +386,7 @@ DcsBootMain(
 		}	else {
 			res = DoExecCmd();
 		}
-		
+
 		if(EFI_ERROR(res))
 		{
 			if (0 == StrCmp (gEfiExecCmd, gEfiExecCmdDefault))

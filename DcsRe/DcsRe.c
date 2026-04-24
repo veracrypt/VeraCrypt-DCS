@@ -2,7 +2,7 @@
   This is DCS recovery loader application
 
 Copyright (c) 2016. Disk Cryptography Services for EFI (DCS), Alex Kolotnikov
-Copyright (c) 2016. VeraCrypt, Mounir IDRASSI 
+Copyright (c) 2016. VeraCrypt, Mounir IDRASSI
 
 This program and the accompanying materials
 are licensed and made available under the terms and conditions
@@ -18,6 +18,7 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Library/DevicePathLib.h>
 #include <Library/BaseMemoryLib.h>
 #include <Guid/GlobalVariable.h>
+#include "DcsConfig.h"
 #include "common/Tcdefs.h"
 
 #ifdef _M_X64
@@ -45,7 +46,7 @@ PMENU_ITEM gMenu = NULL;
 UINTN        EfiBootVolumeIndex = 0;
 EFI_FILE     *EfiBootVolume = NULL;
 VOID
-SelectEfiVolume() 
+SelectEfiVolume()
 {
 	UINTN        i;
 	EFI_STATUS   res;
@@ -63,7 +64,7 @@ SelectEfiVolume()
 		if (	!EFI_ERROR(FileExist(file, L"EFI\\Boot\\boot" ARCHdotEFI))
 			||	!EFI_ERROR(FileExist(file, L"EFI\\Microsoft\\Boot\\bootmgfw.efi"))
 			||	!EFI_ERROR(FileExist(file, L"EFI\\Microsoft\\Boot\\bootmgfw_ms.vc"))
-			) 
+			)
 		{
 			efiVolumesCount++;
 			efiVolumes[i] = file;
@@ -73,7 +74,7 @@ SelectEfiVolume()
 			FileClose(file);
 		}
 	}
-	
+
 	if (efiVolumesCount > 1)
 	{
 		for (i = 0; i < gFSCount; ++i) {
@@ -90,7 +91,7 @@ SelectEfiVolume()
 			if (EfiBootVolumeIndex >= gFSCount) continue;
 			EfiBootVolume = efiVolumes[EfiBootVolumeIndex];
 		} while (EfiBootVolume == NULL);
-		
+
 		/* free unused descriptors */
 		for (i = 0; i < gFSCount; ++i) {
 			if (efiVolumes[i] != NULL && efiVolumes[i] != EfiBootVolume) {
@@ -100,8 +101,8 @@ SelectEfiVolume()
 
 		OUT_PRINT (L"\n");
 	}
-	
-	
+
+
 	MEM_FREE(efiVolumes);
 }
 
@@ -118,11 +119,51 @@ ActionShell(IN VOID* ctx) {
 	return EfiExec(NULL, L"EFI\\Shell\\Shell.efi");
 }
 
+VOID
+ClearRescueBootVars()
+{
+	EfiSetVar(DCS_RESCUE_BOOT_VAR, NULL, NULL, 0, EFI_VARIABLE_BOOTSERVICE_ACCESS);
+	EfiSetVar(DCS_RESCUE_EXEC_PART_GUID_VAR, NULL, NULL, 0, EFI_VARIABLE_BOOTSERVICE_ACCESS);
+}
+
 EFI_STATUS
 ActionDcsBoot(IN VOID* ctx) {
+	ClearRescueBootVars();
 	SelectEfiVolume();
 	if (EfiBootVolume == NULL) return EFI_NOT_READY;
 	return EfiExec(gFSHandles[EfiBootVolumeIndex], L"EFI\\VeraCrypt\\DcsBoot.efi");
+}
+
+EFI_STATUS
+ActionDcsRecoveryBoot(IN VOID* ctx) {
+	EFI_STATUS res;
+	EFI_GUID efiBootPartGuid;
+	UINT8 rescueBoot = 1;
+
+	SelectEfiVolume();
+	if (EfiBootVolume == NULL) return EFI_NOT_READY;
+	if (EFI_ERROR(FileExist(NULL, DCS_RESCUE_HEADER_BACKUP))) return EFI_NOT_FOUND;
+
+	res = EfiGetPartGUID(gFSHandles[EfiBootVolumeIndex], &efiBootPartGuid);
+	if (EFI_ERROR(res)) {
+		ERR_PRINT(L"EFI boot volume GUID: %r\n", res);
+		return res;
+	}
+
+	res = EfiSetVar(DCS_RESCUE_EXEC_PART_GUID_VAR, NULL, &efiBootPartGuid, sizeof(efiBootPartGuid), EFI_VARIABLE_BOOTSERVICE_ACCESS);
+	if (EFI_ERROR(res)) return res;
+
+	res = EfiSetVar(DCS_RESCUE_BOOT_VAR, NULL, &rescueBoot, sizeof(rescueBoot), EFI_VARIABLE_BOOTSERVICE_ACCESS);
+	if (EFI_ERROR(res)) {
+		ClearRescueBootVars();
+		return res;
+	}
+
+	res = EfiExec(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi");
+	if (EFI_ERROR(res)) {
+		ClearRescueBootVars();
+	}
+	return res;
 }
 
 EFI_STATUS
@@ -148,13 +189,13 @@ ActionWindowsBoot(IN VOID* ctx) {
 						bFound = TRUE;
 					}
 				}
-				
+
 				MEM_FREE(fileData);
-				
+
 				if (bFound)
 					return EfiExec(gFSHandles[EfiBootVolumeIndex], L"EFI\\Microsoft\\Boot\\bootmgfw.efi");
 			}
-			
+
 			/* copy our backup copy and then boot from it*/
 			if (!EFI_ERROR(FileExist(NULL, L"\\EFI\\Boot\\original_boot" ARCHdot L"vc_backup")))
 			{
@@ -165,7 +206,7 @@ ActionWindowsBoot(IN VOID* ctx) {
 			}
 
 			ERR_PRINT(L"Could not find the original Windows loader\r\n");
-			
+
 			return EFI_NOT_READY;
 		}
 	}
@@ -190,9 +231,9 @@ ActionRestoreDcsLoader(IN VOID* ctx) {
 	UINTN i;
 	SelectEfiVolume();
 	if (EfiBootVolume == NULL) return EFI_NOT_READY;
-	
+
 	DirectoryCreate (EfiBootVolume, L"EFI\\VeraCrypt");
-	
+
 	for (i = 0; i < sizeof(DcsBootBins) / sizeof(CHAR16*); ++i) {
 		res = FileCopy(NULL, DcsBootBins[i], EfiBootVolume, DcsBootBins[i], 1024 * 1024);
 		if (EFI_ERROR(res)) return res;
@@ -210,23 +251,23 @@ ActionRestoreDcsLoader(IN VOID* ctx) {
 			{
 				res = FileCopy(EfiBootVolume, L"EFI\\Boot\\boot" ARCHdotEFI, EfiBootVolume, L"\\EFI\\Boot\\original_boot" ARCHdot L"vc_backup", 1024 * 1024);
 				if (!EFI_ERROR(res))
-					res = FileCopy(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi", EfiBootVolume, L"EFI\\Boot\\boot" ARCHdotEFI, 1024 * 1024);				
+					res = FileCopy(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi", EfiBootVolume, L"EFI\\Boot\\boot" ARCHdotEFI, 1024 * 1024);
 			}
 			else if ((fileSize <= 32768) && !EFI_ERROR(MemoryHasPattern(fileData, fileSize, g_szVcBootString, StrLen (g_szVcBootString) * 2)))
 			{
 				res = FileCopy(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi", EfiBootVolume, L"EFI\\Boot\\boot" ARCHdotEFI, 1024 * 1024);
 			}
 			MEM_FREE(fileData);
-			
+
 			if (EFI_ERROR(res)) return res;
-		}		
+		}
 	}
 	else if (!EFI_ERROR(FileExist(EfiBootVolume, L"\\EFI\\Boot\\original_boot" ARCHdot L"vc_backup")))
 	{
 		res = FileCopy(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi", EfiBootVolume, L"EFI\\Boot\\boot" ARCHdotEFI, 1024 * 1024);
 		if (EFI_ERROR(res)) return res;
 	}
-	
+
 	if (!EFI_ERROR(FileExist(EfiBootVolume, L"EFI\\Microsoft\\Boot\\bootmgfw.efi")))
 	{
 		/* check if it is Microsoft one */
@@ -237,25 +278,25 @@ ActionRestoreDcsLoader(IN VOID* ctx) {
 		{
 			if ((fileSize > 32768) && !EFI_ERROR(MemoryHasPattern(fileData, fileSize, g_szMsBootString, AsciiStrLen(g_szMsBootString))))
 			{
-				res = FileCopy(EfiBootVolume, L"EFI\\Microsoft\\Boot\\bootmgfw.efi", EfiBootVolume, L"\\EFI\\Microsoft\\Boot\\bootmgfw_ms.vc", 1024 * 1024);				
+				res = FileCopy(EfiBootVolume, L"EFI\\Microsoft\\Boot\\bootmgfw.efi", EfiBootVolume, L"\\EFI\\Microsoft\\Boot\\bootmgfw_ms.vc", 1024 * 1024);
 			}
 
 			MEM_FREE(fileData);
-			
+
 			if (EFI_ERROR(res)) return res;
 		}
 
 		res = FileCopy(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi", EfiBootVolume, L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi", 1024 * 1024);
 		if (EFI_ERROR(res)) return res;
 	}
-	else if (!EFI_ERROR(FileExist(EfiBootVolume, L"\\EFI\\Microsoft\\Boot\\bootmgfw_ms.vc")))		
+	else if (!EFI_ERROR(FileExist(EfiBootVolume, L"\\EFI\\Microsoft\\Boot\\bootmgfw_ms.vc")))
 	{
 		res = FileCopy(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi", EfiBootVolume, L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi", 1024 * 1024);
 		if (EFI_ERROR(res)) return res;
 	}
-	
+
 	OUT_PRINT (L"\nVeraCrypt Loader restored to disk successfully\n\n");
-	
+
 	return EFI_SUCCESS;
 }
 
@@ -286,7 +327,7 @@ ActionRemoveDcsBootMenu(IN VOID* ctx)
 	return res;
 }
 
-/** 
+/**
 Copy DcsProp from rescue disk to EFI boot volume
 */
 EFI_STATUS
@@ -358,7 +399,7 @@ DcsReMain(
       ERR_PRINT(L"InitFS %r\n", res);
 		return res;
    }
-   
+
 	if (!EFI_ERROR(DirectoryExists(NULL, L"EFI\\VeraCrypt")))
 	{
 		item = DcsMenuAppend(NULL, L"Decrypt OS", 'd', ActionDecryptOS, NULL);
@@ -370,15 +411,18 @@ DcsReMain(
 			item = DcsMenuAppend(item, L"Restore VeraCrypt loader configuration to system disk", 'c', ActionRestoreDcsProp, NULL);
 		}
 
-		if (!EFI_ERROR(FileExist(NULL, L"EFI\\VeraCrypt\\svh_bak"))) {
+		if (!EFI_ERROR(FileExist(NULL, DCS_RESCUE_HEADER_BACKUP))) {
 			item = DcsMenuAppend(item, L"Restore OS header keys", 'k', ActionRestoreHeader, NULL);
 		}
 
 		if (!EFI_ERROR(FileExist(NULL, L"EFI\\VeraCrypt\\DcsBoot.efi"))) {
+			item = DcsMenuAppend(item, L"Boot VeraCrypt loader from system disk", 'b', ActionDcsBoot, NULL);
 			item = DcsMenuAppend(item, L"Restore VeraCrypt loader binaries to system disk", 'r', ActionRestoreDcsLoader, NULL);
-			item = DcsMenuAppend(item, L"Boot VeraCrypt loader from rescue disk", 'v', ActionDcsBoot, NULL);
+			if (!EFI_ERROR(FileExist(NULL, DCS_RESCUE_HEADER_BACKUP))) {
+				item = DcsMenuAppend(item, L"Boot VeraCrypt loader from rescue disk", 'v', ActionDcsRecoveryBoot, NULL);
+			}
 		}
-		
+
 		item = DcsMenuAppend(item, L"Boot Original Windows Loader", 'o', ActionWindowsBoot, NULL);
 
 		if (!EFI_ERROR(FileExist(NULL, L"EFI\\Boot\\WinPE_boot" ARCHdotEFI))) {

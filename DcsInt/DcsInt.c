@@ -82,6 +82,12 @@ UINT8*                  SecRegionData = NULL;
 UINTN                   SecRegionSize = 0;
 UINTN                   SecRegionOffset = 0;
 PCRYPTO_INFO            SecRegionCryptInfo = NULL;
+BOOLEAN                 gRescueBoot = FALSE;
+BOOLEAN                 gSecRegionFromBackup = FALSE;
+BOOLEAN                 gRescueTargetDiskIdentified = FALSE;
+EFI_GUID                *gRescueExecPartGuid = NULL;
+
+#define DCS_AUTH_DATA_ZONE_SIZE (128 * 1024)
 
 VOID
 CleanSensitiveData(BOOLEAN bClearBootParams)
@@ -97,7 +103,7 @@ CleanSensitiveData(BOOLEAN bClearBootParams)
 	if (SecRegionData != NULL) {
 		MEM_BURN(SecRegionData, SecRegionSize);
 	}
-	
+
 	if (bootParams != NULL && bClearBootParams) {
 		MEM_BURN(bootParams, sizeof(*bootParams));
 	}
@@ -486,13 +492,14 @@ DcsIntBindingStop(
 //////////////////////////////////////////////////////////////////////////
 // Security regions
 //////////////////////////////////////////////////////////////////////////
-EFI_STATUS 
+EFI_STATUS
 SecRegionLoadDefault(EFI_HANDLE partHandle)
 {
 	EFI_STATUS              res = EFI_SUCCESS;
 	HARDDRIVE_DEVICE_PATH   dpVolme;
 	EFI_BLOCK_IO_PROTOCOL   *bio = NULL;
 	EFI_PARTITION_TABLE_HEADER* gptHdr;
+	gSecRegionFromBackup = FALSE;
 	res = EfiGetPartDetails(partHandle, &dpVolme, &SecRegionHandle);
 	if (EFI_ERROR(res)) {
 		ERR_PRINT(L"Part details: %r\n,", res);
@@ -551,7 +558,125 @@ error:
 	return res;
 }
 
-EFI_STATUS 
+BOOLEAN
+IsRescueBoot()
+{
+	EFI_STATUS res;
+	UINTN len;
+	UINT32 attr;
+	UINT8 *flag = NULL;
+	BOOLEAN rescueBoot = FALSE;
+
+	res = EfiGetVar(DCS_RESCUE_BOOT_VAR, NULL, &flag, &len, &attr);
+	if (!EFI_ERROR(res) && flag != NULL && len >= sizeof(UINT8) && *flag != 0) {
+		rescueBoot = TRUE;
+	}
+	MEM_FREE(flag);
+	return rescueBoot;
+}
+
+EFI_STATUS
+GetRescueExecPartGuid(EFI_GUID **partGuid)
+{
+	EFI_STATUS res;
+	UINTN len;
+	UINT32 attr;
+
+	if (partGuid == NULL) return EFI_INVALID_PARAMETER;
+	*partGuid = NULL;
+	res = EfiGetVar(DCS_RESCUE_EXEC_PART_GUID_VAR, NULL, partGuid, &len, &attr);
+	if (EFI_ERROR(res)) return res;
+	if (len != sizeof(EFI_GUID)) {
+		MEM_FREE(*partGuid);
+		*partGuid = NULL;
+		return EFI_CRC_ERROR;
+	}
+	return EFI_SUCCESS;
+}
+
+BOOLEAN
+IsValidRescueSecRegionSize(UINTN secRegionSize)
+{
+	if (secRegionSize == 512) return TRUE;
+	if (secRegionSize < DCS_AUTH_DATA_ZONE_SIZE) return FALSE;
+	return (secRegionSize % DCS_AUTH_DATA_ZONE_SIZE) == 0;
+}
+
+EFI_STATUS
+LoadDiskIdentifiers(EFI_HANDLE diskHandle)
+{
+	EFI_STATUS              res;
+	EFI_BLOCK_IO_PROTOCOL   *bio = NULL;
+	EFI_PARTITION_TABLE_HEADER* gptHdr;
+
+	bio = EfiGetBlockIO(diskHandle);
+	if (bio == NULL) {
+		return EFI_NOT_FOUND;
+	}
+
+	res = bio->ReadBlocks(bio, bio->Media->MediaId, 0, 512, Header);
+	if (EFI_ERROR(res)) return res;
+	BootDriveSignature = *(uint32 *)(Header + 0x1b8);
+
+	res = bio->ReadBlocks(bio, bio->Media->MediaId, 1, 512, Header);
+	if (EFI_ERROR(res)) return res;
+	gptHdr = (EFI_PARTITION_TABLE_HEADER*)Header;
+	CopyMem(&BootDriveSignatureGpt, &gptHdr->DiskGUID, sizeof(BootDriveSignatureGpt));
+	return EFI_SUCCESS;
+}
+
+EFI_STATUS
+LoadRescueTargetDiskIdentifiers()
+{
+	EFI_STATUS            res;
+	EFI_HANDLE            partHandle;
+	EFI_HANDLE            diskHandle;
+	HARDDRIVE_DEVICE_PATH dpVolme;
+
+	if (gRescueExecPartGuid == NULL) return EFI_NOT_FOUND;
+
+	res = EfiFindPartByGUID(gRescueExecPartGuid, &partHandle);
+	if (EFI_ERROR(res)) return res;
+
+	res = EfiGetPartDetails(partHandle, &dpVolme, &diskHandle);
+	if (EFI_ERROR(res)) return res;
+
+	SecRegionHandle = diskHandle;
+	res = LoadDiskIdentifiers(diskHandle);
+	if (!EFI_ERROR(res)) {
+		gRescueTargetDiskIdentified = TRUE;
+	}
+	return res;
+}
+
+EFI_STATUS
+SecRegionLoadBackup()
+{
+	EFI_STATUS res;
+
+	MEM_FREE(SecRegionData);
+	SecRegionData = NULL;
+	SecRegionSize = 0;
+	SecRegionOffset = 0;
+
+	res = FileLoad(NULL, DCS_RESCUE_HEADER_BACKUP, &SecRegionData, &SecRegionSize);
+	if (EFI_ERROR(res)) return res;
+	if (!IsValidRescueSecRegionSize(SecRegionSize)) {
+		MEM_FREE(SecRegionData);
+		SecRegionData = NULL;
+		SecRegionSize = 0;
+		return EFI_INVALID_PARAMETER;
+	}
+
+	gSecRegionFromBackup = TRUE;
+	res = LoadRescueTargetDiskIdentifiers();
+	if (EFI_ERROR(res)) {
+		OUT_PRINT(L"Rescue target disk not identified yet: %r\n", res);
+	}
+	return EFI_SUCCESS;
+}
+
+EFI_STATUS
 SecRegionChangePwd() {
 	EFI_STATUS              Status;
 	EFI_BLOCK_IO_PROTOCOL*  bio = NULL;
@@ -654,7 +779,7 @@ ret:
 }
 
 EFI_STATUS
-SelectDcsBootBySignature() 
+SelectDcsBootBySignature()
 {
 	EFI_STATUS             res = EFI_NOT_FOUND;
 	EFI_BLOCK_IO_PROTOCOL* bio = NULL;
@@ -679,7 +804,7 @@ SelectDcsBootBySignature()
 }
 
 EFI_STATUS
-SecRegionTryDecrypt() 
+SecRegionTryDecrypt()
 {
 	int          vcres = 1;
 	EFI_STATUS   res = EFI_SUCCESS;
@@ -777,15 +902,18 @@ SecRegionTryDecrypt()
 					EncryptDataUnits((UINT8*)rndNewSaved, (UINT64_STRUCT*)&sector, 1, SecRegionCryptInfo);
 					sector = SecRegionSector + (DeList->DE[DE_IDX_RND].Offset >> 9);
 
-					// get BlockIo protocol
-					bio = EfiGetBlockIO(SecRegionHandle);
-					if (bio == NULL) {
-						ERR_PRINT(L"Block io not supported\n,");
-					}
-					
-					res = bio->WriteBlocks(bio, bio->Media->MediaId, sector, 512, rndNewSaved);
-					if (EFI_ERROR(res)) {
-						ERR_PRINT(L"Write: %r\n", res);
+					if (!gSecRegionFromBackup) {
+						// get BlockIo protocol
+						bio = EfiGetBlockIO(SecRegionHandle);
+						if (bio == NULL) {
+							ERR_PRINT(L"Block io not supported\n,");
+						}
+						else {
+							res = bio->WriteBlocks(bio, bio->Media->MediaId, sector, 512, rndNewSaved);
+							if (EFI_ERROR(res)) {
+								ERR_PRINT(L"Write: %r\n", res);
+							}
+						}
 					}
 				}
 			}
@@ -793,6 +921,10 @@ SecRegionTryDecrypt()
 	}
 
 	// Select boot device
+	if (gSecRegionFromBackup && SecRegionSize <= 512 && !gRescueTargetDiskIdentified) {
+		ERR_PRINT(L"Rescue target disk not identified\n");
+		return EFI_NOT_FOUND;
+	}
 	res = SelectDcsBootBySignature();
 	if (EFI_ERROR(res)) {
 		ERR_PRINT(L"Decrypt device not found\n");
@@ -801,6 +933,10 @@ SecRegionTryDecrypt()
 
 	// Change password if requested
 	if (gAuthPwdCode == AskPwdRetChange && gRnd != NULL) {
+		if (gSecRegionFromBackup) {
+			ERR_PRINT(L"Password change is disabled while booting from the rescue disk\n");
+			return EFI_UNSUPPORTED;
+		}
 		res = RndPreapare();
 		if (!EFI_ERROR(res)) {
 			res = SecRegionChangePwd();
@@ -811,7 +947,7 @@ SecRegionTryDecrypt()
 			ERR_PRINT(L"Random: %r\n", res);
 		}
 	}
-	gHeaderSaltCrc32 = GetCrc32(SecRegionData + SecRegionOffset, PKCS5_SALT_SIZE);	
+	gHeaderSaltCrc32 = GetCrc32(SecRegionData + SecRegionOffset, PKCS5_SALT_SIZE);
 	return EFI_SUCCESS;
 }
 
@@ -826,7 +962,7 @@ enum OnExitTypes{
 	OnExitSuccess
 };
 
-BOOLEAN 
+BOOLEAN
 AsciiCharNCmp(
 	IN CHAR8 ch1,
 	IN CHAR8 ch2
@@ -835,10 +971,10 @@ AsciiCharNCmp(
 	return (ch1 | 0x20) == (ch2 | 0x20);
 }
 
-CHAR8* 
+CHAR8*
 AsciiStrNStr(
 	IN CHAR8* str,
-	IN CHAR8* pattern) 
+	IN CHAR8* pattern)
 {
 	CHAR8* pos1 = str;
 	CHAR8* pos2;
@@ -863,7 +999,7 @@ OnExitGetParam(
 	IN CHAR8 *name,
 	OUT CHAR8  **value,
 	OUT CHAR16 **valueU
-	) 
+	)
 {
 	CHAR8* pos;
 	UINTN  len = 0;
@@ -896,12 +1032,12 @@ OnExit(
 	CHAR8* delayStr = NULL;
 	EFI_GUID *guid = NULL;
 	CHAR16  *fileStr  = NULL;
-	
+
 	if (EFI_ERROR(retValue))
 	{
 		CleanSensitiveData(TRUE);
 	}
-	
+
 	if (action == NULL) return retValue;
 
 	if (OnExitGetParam(action, "guid", &guidStr, NULL)) {
@@ -948,7 +1084,7 @@ OnExit(
 	else if (AsciiStrNStr(action, "shutdown") == action) {
 		retValue = EFI_DCS_SHUTDOWN_REQUESTED;
 	}
-	
+
 	else if (AsciiStrNStr(action, "reboot") == action) {
 		retValue = EFI_DCS_REBOOT_REQUESTED;
 	}
@@ -965,7 +1101,7 @@ OnExit(
 				goto exit;
 			}
 			// Try to exec
-			if (fileStr != NULL) {				
+			if (fileStr != NULL) {
 				res = EfiExec(h, fileStr);
 				if (EFI_ERROR(res)) {
 					ERR_PRINT(L"\nStart %s - %r\n", fileStr, res);
@@ -980,7 +1116,7 @@ OnExit(
 				retValue = EFI_DCS_HALT_REQUESTED;
 				goto exit;
 			}
-		}		
+		}
 
 		if (fileStr != NULL) {
 			EfiSetVar(L"DcsExecCmd", NULL, fileStr, (StrLen(fileStr) + 1) * 2, EFI_VARIABLE_BOOTSERVICE_ACCESS);
@@ -1101,15 +1237,28 @@ UefiMain(
 
 	InitBio();
 	InitFS();
+	gRescueBoot = IsRescueBoot();
+	if (gRescueBoot) {
+		res = GetRescueExecPartGuid(&gRescueExecPartGuid);
+		if (EFI_ERROR(res)) {
+			return OnExit(gOnExitNotFound, OnExitAuthNotFound, res);
+		}
+	}
 
 	// Remove BootNext to restore boot order
 	BootMenuItemRemove(L"BootNext");
 
 	// Load auth parameters
 	VCAuthLoadConfig();
-	if (gAuthSecRegionSearch) {
+	if (gRescueBoot) {
+		res = SecRegionLoadBackup();
+		if (EFI_ERROR(res)) {
+			return OnExit(gOnExitNotFound, OnExitAuthNotFound, res);
+		}
+	} else if (gAuthSecRegionSearch) {
 		res = PlatformGetAuthData(&SecRegionData, &SecRegionSize, &SecRegionHandle);
 		if (!EFI_ERROR(res)) {
+			gSecRegionFromBackup = FALSE;
 			VCAuthLoadConfigUpdated(SecRegionData, SecRegionSize);
 			PauseHandleInfo(SecRegionHandle, gSecRegionInfoDelay);
 		}

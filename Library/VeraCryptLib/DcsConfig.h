@@ -25,7 +25,11 @@ extern UINTN    gConfigBufferSize;
 extern char *gConfigBufferUpdated;
 extern UINTN	gConfigBufferUpdatedSize;
 
+#define DCS_RESCUE_BOOT_VAR           L"DcsRescueBoot"
+#define DCS_RESCUE_EXEC_PART_GUID_VAR L"DcsRescueExecPartGuid"
+#define DCS_RESCUE_HEADER_BACKUP      L"\\EFI\\VeraCrypt\\svh_bak"
+
 BOOLEAN ConfigRead(char *configKey, char *configValue, int maxValueSize);
 int ConfigReadInt(char *configKey, int defaultValue);
-char *ConfigReadString(char *configKey, char *defaultValue, char *str, int maxLen); 
+char *ConfigReadString(char *configKey, char *defaultValue, char *str, int maxLen);
 #endif

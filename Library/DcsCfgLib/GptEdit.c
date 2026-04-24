@@ -74,6 +74,7 @@ GptPrint(
 		ERR_PRINT(L"No GPT is loaded\n");
 		return;
 	}
+	OUT_PRINT(L"GPT partitions (zero-based indexes):\n");
 	Entry = Entrys;
 	for (index = 0; index < PartHdr->NumberOfPartitionEntries; ++index, ++Entry) {
 		if (CompareGuid(&Entry->PartitionTypeGUID, &gEfiPartTypeUnusedGuid)) {

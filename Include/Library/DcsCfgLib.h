@@ -50,6 +50,7 @@ extern UINT8 *DeCryptoHeader;
 // DcsCfg data
 extern CONST CHAR16*       DcsDiskEntrysFileName;
 extern EFI_PARTITION_ENTRY DcsHidePart;
+extern EFI_PARTITION_TABLE_HEADER *GptMainHdr;
 extern EFI_PARTITION_ENTRY *GptMainEntrys;
 extern UINTN               BootPartIdx;
 extern UINTN               MirrorPartIdx;

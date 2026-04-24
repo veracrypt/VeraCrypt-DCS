@@ -1355,22 +1355,36 @@ PartitionOuterInit(
 	UINT64                  encSectorEnd;
 	UINT64                  hiddenVolumeSize;
 	UINT64                  VolumeSize;
-	int8                    master_keydata[MASTER_KEYDATA_SIZE];
 	EFI_BLOCK_IO_PROTOCOL*  bio;
 	EFI_STATUS              res;
 	EFI_LBA                 vhsector;
 	EFI_LBA                 vhsector2;
 	UINT64                  savePadding = 256;
 
-	if (!RandgetBytes(master_keydata, MASTER_KEYDATA_SIZE, FALSE)) {
-		ERR_PRINT(L"No randoms\n");
-		return EFI_CRC_ERROR;
+	if (diskIndex >= gBIOCount) {
+		ERR_PRINT(L"Bad disk index %d. Must be less than %d\n", diskIndex, gBIOCount);
+		return EFI_INVALID_PARAMETER;
 	}
-
+	if (GptMainHdr == NULL || GptMainEntrys == NULL) {
+		ERR_PRINT(L"No GPT is loaded\n");
+		return EFI_NOT_FOUND;
+	}
+	if (outerIndex >= GptMainHdr->NumberOfPartitionEntries ||
+		endIndex >= GptMainHdr->NumberOfPartitionEntries) {
+		ERR_PRINT(L"Bad partition indexes %d %d. GPT indexes are zero-based and must be less than %d\n",
+			outerIndex, endIndex, GptMainHdr->NumberOfPartitionEntries);
+		return EFI_INVALID_PARAMETER;
+	}
 	if (CompareGuid(&GptMainEntrys[outerIndex].PartitionTypeGUID, &gEfiPartTypeUnusedGuid) ||
 		CompareGuid(&GptMainEntrys[endIndex].PartitionTypeGUID, &gEfiPartTypeUnusedGuid)
 		) {
-		ERR_PRINT(L"Bad partition indexes %d %d\n", outerIndex, endIndex);
+		ERR_PRINT(L"Bad partition indexes %d %d. GPT indexes are zero-based values printed by -pl\n",
+			outerIndex, endIndex);
+		return EFI_INVALID_PARAMETER;
+	}
+	if (GptMainEntrys[outerIndex].StartingLBA >= GptMainEntrys[endIndex].StartingLBA) {
+		ERR_PRINT(L"Bad outer partition order. Start outer index %d must be before end outer index %d\n",
+			outerIndex, endIndex);
 		return EFI_INVALID_PARAMETER;
 	}
 	if (EfiIsPartition(gBIOHandles[diskIndex])) {
@@ -1384,16 +1398,48 @@ PartitionOuterInit(
 		return EFI_NOT_FOUND;
 	}
 
+	OUT_PRINT(L"Using zero-based GPT indexes:\n");
+	OUT_PRINT(L"Start outer %d: [%lld, %lld] %s\n", outerIndex,
+		GptMainEntrys[outerIndex].StartingLBA,
+		GptMainEntrys[outerIndex].EndingLBA,
+		&GptMainEntrys[outerIndex].PartitionName);
+	OUT_PRINT(L"End outer %d: [%lld, %lld] %s\n", endIndex,
+		GptMainEntrys[endIndex].StartingLBA,
+		GptMainEntrys[endIndex].EndingLBA,
+		&GptMainEntrys[endIndex].PartitionName);
+
+	{
+		PCRYPTO_INFO cryptoInfo;
+		VCAuthAsk();
+		res = TryHeaderDecrypt(DeCryptoHeader, &cryptoInfo, NULL);
+		if (EFI_ERROR(res)) {
+			ERR_PRINT(L"Decrypt: %r\n", res);
+			return res;
+		}
+		if (cryptoInfo->EncryptedAreaLength.Value != 0) {
+			ERR_PRINT(L"Encrypted already. Run -oshideprep before OS in-place encryption starts (EncryptedAreaLength must be 0)\n");
+			crypto_close(cryptoInfo);
+			return EFI_INVALID_PARAMETER;
+		}
+		crypto_close(cryptoInfo);
+	}
+
 	// Wipe Outer start, Outer end
 	DeListPrint();
-	BlockRangeWipe(gBIOHandles[diskIndex], GptMainEntrys[outerIndex].StartingLBA, GptMainEntrys[outerIndex].EndingLBA);
-	BlockRangeWipe(gBIOHandles[diskIndex], GptMainEntrys[endIndex].StartingLBA, GptMainEntrys[endIndex].EndingLBA);
+	res = BlockRangeWipe(gBIOHandles[diskIndex], GptMainEntrys[outerIndex].StartingLBA, GptMainEntrys[outerIndex].EndingLBA);
+	if (EFI_ERROR(res)) {
+		ERR_PRINT(L"Outer start wipe aborted: %r\n", res);
+		return res;
+	}
+	res = BlockRangeWipe(gBIOHandles[diskIndex], GptMainEntrys[endIndex].StartingLBA, GptMainEntrys[endIndex].EndingLBA);
+	if (EFI_ERROR(res)) {
+		ERR_PRINT(L"Outer end wipe aborted: %r\n", res);
+		return res;
+	}
 
 	if (AskConfirm("Init outer headers?", 1)) {
 		// init header outer start
-		if (gAuthPasswordMsg == NULL) {
-			VCAuthAsk();
-		}
+		VCAuthAsk();
 
 		ea = AskEA();
 		mode = AskMode(ea);
@@ -1410,6 +1456,7 @@ PartitionOuterInit(
 		vhsector2 = GptMainEntrys[endIndex].EndingLBA - 255;
 		if (EFI_ERROR(res)) {
 			ERR_PRINT(L"Create header: %r\n", res);
+			return res;
 		}
 		EfiPrintDevicePath(gBIOHandles[diskIndex]);
 		OUT_PRINT(L"[%lld, %lld] size %lld to %lld,%lld\n", encSectorStart, encSectorEnd, VolumeSize, vhsector, vhsector2);
@@ -1418,9 +1465,15 @@ PartitionOuterInit(
 		}
 		res = bio->WriteBlocks(bio, bio->Media->MediaId, vhsector, 512, Header);
 		ERR_PRINT(L"Write %lld: %r\n", vhsector, res);
+		if (EFI_ERROR(res)) {
+			return res;
+		}
 		if (vhsector != vhsector2) {
 			res = bio->WriteBlocks(bio, bio->Media->MediaId, vhsector2, 512, BackupHeader);
 			ERR_PRINT(L"Write %lld: %r\n", vhsector2, res);
+			if (EFI_ERROR(res)) {
+				return res;
+			}
 		}
 
 		// init header outer end
@@ -1434,6 +1487,7 @@ PartitionOuterInit(
 			encSectorStart, encSectorEnd, VolumeSize, hiddenVolumeSize, 0);
 		if (EFI_ERROR(res)) {
 			ERR_PRINT(L"Create header: %r\n", res);
+			return res;
 		}
 		vhsector = GptMainEntrys[outerIndex].StartingLBA + 128;
 		vhsector2 = GptMainEntrys[endIndex].EndingLBA - 127;
@@ -1445,15 +1499,21 @@ PartitionOuterInit(
 		}
 		res = bio->WriteBlocks(bio, bio->Media->MediaId, vhsector, 512, Header);
 		ERR_PRINT(L"Write %lld: %r\n", vhsector, res);
+		if (EFI_ERROR(res)) {
+			return res;
+		}
 		if (vhsector != vhsector2) {
 			res = bio->WriteBlocks(bio, bio->Media->MediaId, vhsector2, 512, BackupHeader);
 			ERR_PRINT(L"Write %lld: %r\n", vhsector2, res);
+			if (EFI_ERROR(res)) {
+				return res;
+			}
 		}
 	}
 
 	if (AskConfirm("Update main encryption header?", 1)) {
-		PCRYPTO_INFO cryptoInfo;
-		PCRYPTO_INFO ci;
+		PCRYPTO_INFO cryptoInfo = NULL;
+		PCRYPTO_INFO ci = NULL;
 		CHAR8 fname8[256];
 		CHAR16 fname16[256];
 
@@ -1465,7 +1525,8 @@ PartitionOuterInit(
 		}
 
 		if (cryptoInfo->EncryptedAreaLength.Value != 0) {
-			ERR_PRINT(L"Encrypted already\n");
+			ERR_PRINT(L"Encrypted already. Run -oshideprep before OS in-place encryption starts (EncryptedAreaLength must be 0)\n");
+			crypto_close(cryptoInfo);
 			return EFI_INVALID_PARAMETER;
 		}
 
@@ -1493,15 +1554,15 @@ PartitionOuterInit(
 
 		if (vcres != 0) {
 			ERR_PRINT(L"header create error(%x)\n", vcres);
+			crypto_close(ci);
+			crypto_close(cryptoInfo);
 			return EFI_INVALID_PARAMETER;
 		}
 		crypto_close(ci);
-		vhsector = 62;
-		res = bio->WriteBlocks(bio, bio->Media->MediaId, vhsector, 512, Header);
-		ERR_PRINT(L"Write %lld: %r\n", vhsector, res);
+		ci = NULL;
 
 		vcres = CreateVolumeHeaderInMemory(
-			TRUE, Header,
+			TRUE, BackupHeader,
 			cryptoInfo->ea,
 			cryptoInfo->mode,
 			&gAuthPassword,
@@ -1520,11 +1581,22 @@ PartitionOuterInit(
 
 		if (vcres != 0) {
 			ERR_PRINT(L"header create error(%x)\n", vcres);
+			crypto_close(ci);
+			crypto_close(cryptoInfo);
 			return EFI_INVALID_PARAMETER;
 		}
 		crypto_close(ci);
+		ci = NULL;
+		crypto_close(cryptoInfo);
+
+		vhsector = 62;
+		res = bio->WriteBlocks(bio, bio->Media->MediaId, vhsector, 512, Header);
+		ERR_PRINT(L"Write %lld: %r\n", vhsector, res);
+		if (EFI_ERROR(res)) {
+			return res;
+		}
 		MEM_FREE(DeCryptoHeader);
-		DeCryptoHeader = Header;
+		DeCryptoHeader = BackupHeader;
 		AskAsciiString("Encrypted GPT file name:", fname8, sizeof(fname8), 1, "gpt_enc");
 		AsciiStrToUnicodeStr(fname8, fname16);
 		DcsDiskEntrysFileName = fname16;
@@ -1548,18 +1620,23 @@ PartitionOuterInit(
 }
 
 EFI_STATUS
-OuterInit() 
+OuterInit()
 {
+	EFI_STATUS res;
 	UINTN disk;
 	UINTN startOuter;
 	UINTN endOuter;
 	BioSkipPartitions = TRUE;
 	PrintBioList();
 	disk = AskUINTN("Disk:", 0);
-	GptLoadFromDisk(disk);
+	res = GptLoadFromDisk(disk);
+	if (EFI_ERROR(res)) {
+		return res;
+	}
 	DeListPrint();
-	startOuter = AskUINTN("Start outer:", 0);
-	endOuter = AskUINTN("End outer:", startOuter + 3);
+	OUT_PRINT(L"Use zero-based GPT indexes printed by -pl.\n");
+	startOuter = AskUINTN("Start outer GPT index:", 0);
+	endOuter = AskUINTN("End outer GPT index:", startOuter + 3);
 	return PartitionOuterInit(disk, startOuter, endOuter);
 }
 

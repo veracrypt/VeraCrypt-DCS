@@ -33,6 +33,8 @@ extern char* gAutoPassword;
 extern char* gAuthPimMsg;
 extern int gAuthPimRqt;
 extern int gAuthPim;
+extern UINT8 gAuthPimProgress;
+extern UINT8 gAuthPimProgressExplicit;
 
 extern int gAuthTcRqt;
 extern int gAuthTc;

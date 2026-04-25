@@ -46,6 +46,7 @@ char* gAuthPimMsg = NULL;
 int gAuthPimRqt = 1;
 int gAuthPim = 0;
 UINT8 gAuthPimProgress = 1;
+UINT8 gAuthPimProgressExplicit = 0;
 
 int gAuthTcRqt = 0;
 int gAuthTc = 0;
@@ -98,6 +99,7 @@ VCAuthLoadConfig()
 {
 	int tmp;
 	char* strTemp = NULL;
+	char pimProgress[32];
 
 	if (gAuthPasswordMsg != NULL) return; // Already loaded
 
@@ -149,7 +151,13 @@ VCAuthLoadConfig()
 
 	gPasswordProgress = (UINT8)ConfigReadInt("AuthorizeProgress", 1); // print "*"
 	gPasswordVisible = (UINT8)ConfigReadInt("AuthorizeVisible", 0);   // show chars
-	gAuthPimProgress = (UINT8)ConfigReadInt("PimProgress", gPasswordProgress);
+	if (ConfigRead("PimProgress", pimProgress, sizeof(pimProgress))) {
+		gAuthPimProgress = (UINT8)ConfigReadInt("PimProgress", gPasswordProgress);
+		gAuthPimProgressExplicit = 1;
+	} else {
+		gAuthPimProgress = gPasswordProgress;
+		gAuthPimProgressExplicit = 0;
+	}
 	gPasswordShowMark = ConfigReadInt("AuthorizeMarkTouch", 1);       // show touch points
 	gPasswordTimeout = (UINTN)ConfigReadInt("PasswordTimeout", 180);   // If no password for <seconds> => <ESC>
 	gKeyboardInputDelay = (UINTN)ConfigReadInt("KeyboardInputDelay", 100); // minimum number of ms between two valid key strokes, anything between is discarded

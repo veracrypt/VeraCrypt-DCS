@@ -1310,6 +1310,9 @@ UefiMain(
 		gAuthPasswordType = gForcePasswordType;
 		gAuthPasswordMsg = gForcePasswordMsg;
 		gPasswordProgress = gForcePasswordProgress;
+		if (!gAuthPimProgressExplicit) {
+			gAuthPimProgress = gForcePasswordProgress;
+		}
 	}
 
 	// ask any way? (by DcsBoot flag)

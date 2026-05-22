@@ -1126,7 +1126,7 @@ OnExit(
 
 	else if (AsciiStrNStr(action, "postexec") == action) {
 		if (guid != NULL) {
-			EfiSetVar(L"DcsExecPartGuid", NULL, &guid, sizeof(EFI_GUID), EFI_VARIABLE_BOOTSERVICE_ACCESS);
+			EfiSetVar(L"DcsExecPartGuid", NULL, guid, sizeof(EFI_GUID), EFI_VARIABLE_BOOTSERVICE_ACCESS);
 		}
 		if (fileStr != NULL) {
 			EfiSetVar(L"DcsExecCmd", NULL, fileStr, (StrLen(fileStr) + 1) * 2, EFI_VARIABLE_BOOTSERVICE_ACCESS);

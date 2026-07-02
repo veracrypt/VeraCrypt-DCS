@@ -1013,10 +1013,19 @@ OnExitGetParam(
 	if (pos[len] == 0) return FALSE;
 	if (value != NULL) *value = MEM_ALLOC(len + 1);
 	if (valueU != NULL) *valueU = MEM_ALLOC((len + 1) * 2);
+	if ((value != NULL && *value == NULL) || (valueU != NULL && *valueU == NULL)) {
+		MEM_FREE(value != NULL ? *value : NULL);
+		MEM_FREE(valueU != NULL ? *valueU : NULL);
+		if (value != NULL) *value = NULL;
+		if (valueU != NULL) *valueU = NULL;
+		return FALSE;
+	}
 	for (i = 0; i < len; ++i) {
 		if (value != NULL) (*value)[i] = pos[i];
 		if (valueU != NULL) (*valueU)[i] = pos[i];
 	}
+	if (value != NULL) (*value)[len] = 0;
+	if (valueU != NULL) (*valueU)[len] = 0;
 	return TRUE;
 }
 

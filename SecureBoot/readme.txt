@@ -1,5 +1,28 @@
+=======================================================================
+LEGACY - DO NOT USE ON MODERN SYSTEMS
+=======================================================================
+This custom-key procedure predates the Microsoft Secure Boot 2023 CA
+transition. It replaces the firmware Secure Boot databases and enrolls
+only the 2011-era Microsoft certificates (MicWinProPCA2011,
+MicCorUEFCA2011). On systems whose Windows boot chain is signed through
+the 2023 certificate authorities (Windows UEFI CA 2023), running this
+script breaks the Windows Boot Manager handoff after successful
+VeraCrypt pre-boot authentication (system stuck after "Success").
+
+Since VeraCrypt 1.26.29, VeraCrypt ships EFI bootloaders signed by
+Microsoft for both the 2011 and 2023 Microsoft UEFI CAs and selects the
+appropriate set automatically at install/repair time. No custom key
+enrollment is needed: keep the manufacturer Secure Boot keys and, if
+necessary, enable the Microsoft third-party certificates option in the
+firmware setup (see https://veracrypt.jp/en/EFISecureBoot.html).
+
+This procedure remains documented only for custom-mode builds
+(VC_EFI_CUSTOM_MODE) and expert scenarios. It is unsupported for the
+standard VeraCrypt Secure Boot path.
+=======================================================================
+
 Secure Boot:
-In order to allow VeraCrypt EFI bootloader to run when EFI Secure Boot is enabled, VeraCrypt EFI bootloader files are signed by custom key(DCS_sign) 
+In order to allow VeraCrypt EFI bootloader to run when EFI Secure Boot is enabled, VeraCrypt EFI bootloader files are signed by custom key(DCS_sign)
 whose public part can be loaded into Secure Boot to allow verification of VeraCrypt EFI files.
 
 to update Secure Boot configuration steps:

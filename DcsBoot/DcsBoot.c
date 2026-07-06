@@ -111,6 +111,29 @@ DoExecCmd()
 	return res;
 }
 
+BOOLEAN
+IsMSWindowsLoader(CHAR16* path) {
+	/* check if the file is a genuine Microsoft boot manager and not a copy of
+	   the VeraCrypt loader installed at the standard boot manager location */
+	UINT8*      fileData = NULL;
+	UINTN       fileSize = 0;
+	BOOLEAN     bFound = FALSE;
+
+	if (EFI_ERROR(FileExist(NULL, path)))
+		return FALSE;
+
+	if (!EFI_ERROR(FileLoad(NULL, path, &fileData, &fileSize)))
+	{
+		if ((fileSize > 32768) && !EFI_ERROR(MemoryHasPattern(fileData, fileSize, g_szMsBootString, AsciiStrLen(g_szMsBootString))))
+		{
+			bFound = TRUE;
+		}
+	}
+
+	MEM_FREE(fileData);
+	return bFound;
+}
+
 EFI_STATUS
 ExecMSWindowsLoader() {
 
@@ -118,25 +141,8 @@ ExecMSWindowsLoader() {
 		return EfiExec(NULL, gEfiExecCmdDefault);
 	else
 	{
-		if (!EFI_ERROR(FileExist(NULL, gEfiExecCmdMS)))
-		{
-			/* check if it is Microsoft one */
-			UINT8*      fileData = NULL;
-			UINTN       fileSize = 0;
-			BOOLEAN		bFound = FALSE;
-			if (!EFI_ERROR(FileLoad(NULL, gEfiExecCmdMS, &fileData, &fileSize)))
-			{
-				if ((fileSize > 32768) && !EFI_ERROR(MemoryHasPattern(fileData, fileSize, g_szMsBootString, AsciiStrLen(g_szMsBootString))))
-				{
-					bFound = TRUE;
-				}
-			}
-
-			MEM_FREE(fileData);
-
-			if (bFound)
-				return EfiExec(NULL, gEfiExecCmdMS);
-		}
+		if (IsMSWindowsLoader(gEfiExecCmdMS))
+			return EfiExec(NULL, gEfiExecCmdMS);
 
 		ERR_PRINT(L"Could not find the original Windows loader\r\n");
 
@@ -391,6 +397,14 @@ DcsBootMain(
 		{
 			if (0 == StrCmp (gEfiExecCmd, gEfiExecCmdDefault))
 			{
+				// Fall back to the standard boot manager path only if it does not hold a
+				// copy of the VeraCrypt loader. On VeraCrypt system encryption setups this
+				// path holds the VeraCrypt loader itself: executing it would restart the
+				// password prompt in an endless loop instead of reporting the error below.
+				// When the file is absent from the start partition (searchMsOnESP), keep
+				// the legacy behavior of searching the other EFI system partitions.
+				if (!searchMsOnESP && !IsMSWindowsLoader(gEfiExecCmdMS))
+					break;
 				gEfiExecCmd = gEfiExecCmdMS;
 				searchOnESP = searchMsOnESP;
 				gEfiExecPartGuid = pEfiExecPartBackup;
@@ -401,7 +415,23 @@ DcsBootMain(
 		else
 			break;
 	}
-	ERR_PRINT(L"%a\nStatus -  %r", gDoExecCmdMsg, res);
+	ERR_PRINT(L"%a\nStatus -  %r\n", gDoExecCmdMsg, res);
+	if ((res == EFI_SECURITY_VIOLATION) || (res == EFI_ACCESS_DENIED)) {
+		ERR_PRINT(L"\n\
+Secure Boot refused to start the Windows boot manager used by VeraCrypt.\n\
+The firmware no longer trusts a component of the installed boot chain.\n\
+This can happen after a Secure Boot certificate (CA) update or after a\n\
+change of the firmware Secure Boot configuration.\n\
+\n\
+To recover:\n\
+ 1. Temporarily disable Secure Boot in the firmware setup and start Windows.\n\
+ 2. Run VeraCrypt Setup in Repair mode to reinstall trusted bootloaders.\n\
+ 3. Re-enable Secure Boot.\n\
+Alternatively, boot the VeraCrypt Rescue Disk and select\n\
+'Restore VeraCrypt loader binaries to system disk'.\n\
+\n\
+More information: https://veracrypt.jp/en/EFISecureBoot.html\n");
+	}
 	EfiCpuHalt();
    return EFI_INVALID_PARAMETER;
 }

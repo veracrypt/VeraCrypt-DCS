@@ -41,12 +41,17 @@
   BaseLib
   MemoryAllocationLib
   CommonLib
+  GraphLib
+  PasswordLib
+  DcsCfgLib
+  DcsTpmLib
   VeraCryptLib
 
 [Guids]
   gEfiGlobalVariableGuid
   gEfiDcsVariableGuid
   gEfiFileInfoGuid
+  gEfiPartTypeUnusedGuid
   gEfiPartTypeSystemPartGuid
   gEfiGlobalVariableGuid
 
@@ -65,3 +70,5 @@ NOOPT_VS2015x86_IA32_CC_FLAGS    = /arch:IA32  /FAcs
 
 [Pcd]
 
+[BuildOptions.AARCH64]
+MSFT:*_*_AARCH64_CC_FLAGS = /D_UEFI

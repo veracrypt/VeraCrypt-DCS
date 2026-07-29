@@ -20,6 +20,7 @@ https://opensource.org/licenses/LGPL-3.0
 #include <Library/PrintLib.h>
 #include <Protocol/DcsBmlProto.h>
 #include "DcsConfig.h"
+#include <DcsVeraCrypt.h>
 #include <Guid/Gpt.h>
 #include <Guid/GlobalVariable.h>
 
@@ -415,6 +416,16 @@ DcsBootMain(
 		else
 			break;
 	}
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+	{
+		EFI_STATUS clearStatus = VCClearArm64BootArgsHandoff(&gEfiDcsVariableGuid);
+		if (EFI_ERROR(clearStatus)) {
+			ERR_PRINT(L"Can not clear ARM64 boot params after Windows loader returned: %r\n", clearStatus);
+			EfiCpuHalt();
+			return clearStatus;
+		}
+	}
+#endif
 	ERR_PRINT(L"%a\nStatus -  %r\n", gDoExecCmdMsg, res);
 	if ((res == EFI_SECURITY_VIOLATION) || (res == EFI_ACCESS_DENIED)) {
 		ERR_PRINT(L"\n\

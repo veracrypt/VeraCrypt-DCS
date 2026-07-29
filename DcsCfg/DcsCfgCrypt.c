@@ -416,6 +416,7 @@ RangeCrypt(
 	)
 {
 	EFI_STATUS              res = EFI_SUCCESS;
+	EFI_STATUS              integrityStatus = EFI_SUCCESS;
 	EFI_BLOCK_IO_PROTOCOL  *io;
 	UINT8*                  buf;
 	UINT64                  remains;
@@ -464,6 +465,7 @@ RangeCrypt(
 			do {
 				res = io->ReadBlocks(io, io->Media->MediaId, pos, rd << 9, buf);
 				if (EFI_ERROR(res)) {
+					EFI_STATUS ioError = res;
 					UINT8 ari;
 					ERR_PRINT(L"Read error: %r\n", res);
 					ari = AskARI();
@@ -471,6 +473,9 @@ RangeCrypt(
 					{
 					case 'I':
 					case 'i':
+						if (!EFI_ERROR(integrityStatus)) {
+							integrityStatus = ioError;
+						}
 						res = EFI_SUCCESS;
 						break;
 					case 'A':
@@ -503,6 +508,7 @@ RangeCrypt(
 			do {
 				res = io->WriteBlocks(io, io->Media->MediaId, pos, rd << 9, buf);
 				if (EFI_ERROR(res)) {
+					EFI_STATUS ioError = res;
 					UINT8 ari;
 					ERR_PRINT(L"Write error: %r\n", res);
 					ari = AskARI();
@@ -510,6 +516,9 @@ RangeCrypt(
 					{
 					case 'I':
 					case 'i':
+						if (!EFI_ERROR(integrityStatus)) {
+							integrityStatus = ioError;
+						}
 						res = EFI_SUCCESS;
 						break;
 					case 'A':
@@ -556,6 +565,9 @@ RangeCrypt(
 					}
 				}
 				if (EFI_ERROR(res)) {
+					if (!EFI_ERROR(integrityStatus)) {
+						integrityStatus = res;
+					}
 					ERR_PRINT(L"Header update: %r\n", res);
 				}
 			}
@@ -563,10 +575,10 @@ RangeCrypt(
 			// Check ESC
 			{
 				EFI_INPUT_KEY key;
-				res = gBS->CheckEvent(gST->ConIn->WaitForKey);
-				if(!EFI_ERROR(res)) {
-					gST->ConIn->ReadKeyStroke(gST->ConIn, &key);
-					if (key.ScanCode == SCAN_ESC) {
+				EFI_STATUS keyStatus = gBS->CheckEvent(gST->ConIn->WaitForKey);
+				if(!EFI_ERROR(keyStatus)) {
+					keyStatus = gST->ConIn->ReadKeyStroke(gST->ConIn, &key);
+					if (!EFI_ERROR(keyStatus) && key.ScanCode == SCAN_ESC) {
 						if (AskConfirm("\n\rStop?", 1)) {
 							res = EFI_NOT_READY;
 							goto error;
@@ -723,7 +735,10 @@ RangeCrypt(
 			 
 			
 		}
-		
+
+	}
+	if (EFI_ERROR(integrityStatus) && !EFI_ERROR(res)) {
+		res = integrityStatus;
 	}
 	OUT_PRINT(L"\nDone");
 
@@ -886,6 +901,18 @@ OSDecrypt()
 	UINTN                   disk;
 	BOOLEAN                 doDecrypt = FALSE;
 	EFI_BLOCK_IO_PROTOCOL*  io;
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+	UINT32                  headerSaltCrc32 = 0;
+#endif
+
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+	res = VCClearArm64RescueDecryptionComplete(&gEfiDcsVariableGuid);
+	if (EFI_ERROR(res)) {
+		ERR_PRINT(L"Clear ARM64 rescue-decryption marker: %r\n", res);
+		return res;
+	}
+#endif
+
 	if (gAuthPasswordMsg == NULL) {
 		VCAuthAsk();
 	}
@@ -899,6 +926,9 @@ OSDecrypt()
 		BioPrintDevicePath(disk);
 		res = TryHeaderDecrypt(Header, &gAuthCryptInfo, &gHeaderCryptInfo);
 		if (EFI_ERROR(res)) continue;
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+		headerSaltCrc32 = GetCrc32((uint8*)Header, PKCS5_SALT_SIZE);
+#endif
 		doDecrypt = TRUE;
 		break;
 	}
@@ -915,6 +945,39 @@ OSDecrypt()
 			gAuthCryptInfo, FALSE,
 			gHeaderCryptInfo,
 			62);
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+		if (!EFI_ERROR(res)) {
+			PCRYPTO_INFO verifyCryptoInfo = NULL;
+
+			res = io->FlushBlocks(io);
+			if (!EFI_ERROR(res)) {
+				res = io->ReadBlocks(io, io->Media->MediaId, 62, 512, Header);
+			}
+			if (!EFI_ERROR(res)
+				&& GetCrc32((uint8*)Header, PKCS5_SALT_SIZE) != headerSaltCrc32) {
+				res = EFI_CRC_ERROR;
+			}
+			if (!EFI_ERROR(res)) {
+				res = TryHeaderDecrypt(Header, &verifyCryptoInfo, NULL);
+			}
+			if (!EFI_ERROR(res)
+				&& (verifyCryptoInfo == NULL
+					|| verifyCryptoInfo->EncryptedAreaLength.Value != 0)) {
+				res = EFI_COMPROMISED_DATA;
+			}
+			if (verifyCryptoInfo != NULL) {
+				crypto_close(verifyCryptoInfo);
+			}
+			if (!EFI_ERROR(res)) {
+				res = VCSetArm64RescueDecryptionComplete(
+					&gEfiDcsVariableGuid,
+					headerSaltCrc32);
+			}
+			if (EFI_ERROR(res)) {
+				ERR_PRINT(L"Finalize ARM64 rescue decryption: %r\n", res);
+			}
+		}
+#endif
 		crypto_close(gHeaderCryptInfo);
 		crypto_close(gAuthCryptInfo);
 	}
@@ -1598,7 +1661,7 @@ PartitionOuterInit(
 		MEM_FREE(DeCryptoHeader);
 		DeCryptoHeader = BackupHeader;
 		AskAsciiString("Encrypted GPT file name:", fname8, sizeof(fname8), 1, "gpt_enc");
-		AsciiStrToUnicodeStr(fname8, fname16);
+		AsciiStrToUnicodeStrS(fname8, fname16, sizeof(fname16) / sizeof(fname16[0]));
 		DcsDiskEntrysFileName = fname16;
 		DeListSaveToFile();
 	}
@@ -1611,7 +1674,7 @@ PartitionOuterInit(
 		DcsHidePart.EndingLBA = GptMainEntrys[endIndex].EndingLBA;
 		GptHideParts();
 		AskAsciiString("Hidden GPT file name:", fname8, sizeof(fname8), 1, "gpt_hidden");
-		AsciiStrToUnicodeStr(fname8, fname16);
+		AsciiStrToUnicodeStrS(fname8, fname16, sizeof(fname16) / sizeof(fname16[0]));
 		DcsDiskEntrysFileName = fname16;
 		DeListSaveToFile();
 	}
@@ -1994,7 +2057,11 @@ GptCryptFile(
 		goto error;
 	}
 
+#if CRYPTOPP_BOOL_ARMV8
+	DetectArmFeatures();
+#else
 	DetectX86Features();
+#endif
 	CopyMem(Header, regionData, sizeof(Header));
 	res = TryHeaderDecrypt(Header, &gAuthCryptInfo, NULL);
 	if(EFI_ERROR(res)){

@@ -346,18 +346,21 @@ FileRename(
 	UINTN          sz;
 	EFI_FILE_INFO* dstinfo = NULL;
 	UINTN          dstinfosz;
+	UINTN          dstnamechars;
 
 	res = FileOpen(root, src, &file, EFI_FILE_MODE_READ, 0);
 	if (EFI_ERROR(res)) return res;
 	res = FileGetInfo(file, &info, &sz);
 	if (EFI_ERROR(res)) return res;
-	dstinfosz = SIZE_OF_EFI_FILE_INFO + StrSize(dst);
+	dstnamechars = StrLen(dst) + 1;
+	dstinfosz = SIZE_OF_EFI_FILE_INFO + dstnamechars * sizeof(CHAR16);
 	dstinfo = (EFI_FILE_INFO*)MEM_ALLOC(dstinfosz);
 	if (dstinfo != NULL) {
 		CopyMem(dstinfo, info, SIZE_OF_EFI_FILE_INFO);
-		dstinfo->FileName[0] = 0;
-		StrCat(dstinfo->FileName, dst);
-		res = file->SetInfo(file, &gEfiFileInfoGuid, dstinfosz, dstinfo);
+		res = StrCpyS(dstinfo->FileName, dstnamechars, dst);
+		if (!RETURN_ERROR(res)) {
+			res = file->SetInfo(file, &gEfiFileInfoGuid, dstinfosz, dstinfo);
+		}
 	}	else {
 		res = EFI_BUFFER_TOO_SMALL;
 	}

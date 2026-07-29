@@ -5,6 +5,20 @@ set dcstype=DEBUG
 set dcsbldtoolset=VS2010x86
 set dcspkgpath="%~dp0DcsPkg.dsc"
 
+if /I ["%1"]==["ARM64"] (
+set dcsarch=AARCH64
+set dcstype=DEBUG
+set dcsbldtoolset=VS2022
+goto :bld
+)
+
+if /I ["%1"]==["ARM64Rel"] (
+set dcsarch=AARCH64
+set dcstype=RELEASE
+set dcsbldtoolset=VS2022
+goto :bld
+)
+
 if /I NOT  ["%1"]==["X64Rel"] goto :IA32
 set dcsarch=X64
 set dcstype=RELEASE
@@ -23,6 +37,7 @@ set dcstype=RELEASE
 
 :bld
 if /I ["%2"]==["VS2015"] set dcsbldtoolset=VS2015x86
+if /I ["%2"]==["VS2022"] set dcsbldtoolset=VS2022
 call bld.bat -t %dcsbldtoolset% -DSECURE_BOOT_ENABLE=1 -p %dcspkgpath% -b %dcstype% -a %dcsarch%
 
 if ERRORLEVEL 1 goto :exit

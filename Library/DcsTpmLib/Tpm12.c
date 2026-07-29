@@ -73,6 +73,108 @@ Sha1Hash(
 	return EFI_SUCCESS;
 }
 
+#define HMAC_SHA1_BLOCK_SIZE  64
+#define HMAC_SHA1_DIGEST_SIZE 20
+
+typedef struct {
+	UINT8 Key[HMAC_SHA1_BLOCK_SIZE];
+	VOID  *Sha1Context;
+} DCS_HMAC_SHA1_CTX;
+
+STATIC
+UINTN
+DcsHmacSha1GetContextSize(VOID)
+{
+	return sizeof(DCS_HMAC_SHA1_CTX) + Sha1GetContextSize();
+}
+
+STATIC
+BOOLEAN
+DcsHmacSha1Init(
+	OUT VOID *HmacContext,
+	IN CONST UINT8 *Key,
+	IN UINTN KeySize)
+{
+	DCS_HMAC_SHA1_CTX *ctx;
+	UINT8 keyHash[HMAC_SHA1_DIGEST_SIZE];
+	UINT8 innerPad[HMAC_SHA1_BLOCK_SIZE];
+	UINTN index;
+	BOOLEAN result;
+
+	if (HmacContext == NULL || (Key == NULL && KeySize != 0)) return FALSE;
+	ctx = (DCS_HMAC_SHA1_CTX *)HmacContext;
+	ctx->Sha1Context = (VOID *)((UINT8 *)HmacContext + sizeof(DCS_HMAC_SHA1_CTX));
+	ZeroMem(ctx->Key, sizeof(ctx->Key));
+	ZeroMem(keyHash, sizeof(keyHash));
+
+	if (KeySize > HMAC_SHA1_BLOCK_SIZE) {
+		if (!Sha1HashAll(Key, KeySize, keyHash)) {
+			MEM_BURN(keyHash, sizeof(keyHash));
+			return FALSE;
+		}
+		CopyMem(ctx->Key, keyHash, HMAC_SHA1_DIGEST_SIZE);
+	} else if (Key != NULL && KeySize != 0) {
+		CopyMem(ctx->Key, Key, KeySize);
+	}
+
+	for (index = 0; index < HMAC_SHA1_BLOCK_SIZE; ++index) {
+		innerPad[index] = ctx->Key[index] ^ 0x36;
+	}
+
+	result = Sha1Init(ctx->Sha1Context)
+		&& Sha1Update(ctx->Sha1Context, innerPad, sizeof(innerPad));
+	MEM_BURN(keyHash, sizeof(keyHash));
+	MEM_BURN(innerPad, sizeof(innerPad));
+	return result;
+}
+
+STATIC
+BOOLEAN
+DcsHmacSha1Update(
+	IN OUT VOID *HmacContext,
+	IN CONST VOID *Data,
+	IN UINTN DataSize)
+{
+	DCS_HMAC_SHA1_CTX *ctx;
+
+	if (HmacContext == NULL) return FALSE;
+	ctx = (DCS_HMAC_SHA1_CTX *)HmacContext;
+	return Sha1Update(ctx->Sha1Context, Data, DataSize);
+}
+
+STATIC
+BOOLEAN
+DcsHmacSha1Final(
+	IN OUT VOID *HmacContext,
+	OUT UINT8 *HmacValue)
+{
+	DCS_HMAC_SHA1_CTX *ctx;
+	UINT8 innerHash[HMAC_SHA1_DIGEST_SIZE];
+	UINT8 outerPad[HMAC_SHA1_BLOCK_SIZE];
+	UINTN index;
+	BOOLEAN result;
+
+	if (HmacContext == NULL || HmacValue == NULL) return FALSE;
+	ctx = (DCS_HMAC_SHA1_CTX *)HmacContext;
+	ZeroMem(innerHash, sizeof(innerHash));
+	if (!Sha1Final(ctx->Sha1Context, innerHash)) {
+		MEM_BURN(innerHash, sizeof(innerHash));
+		return FALSE;
+	}
+
+	for (index = 0; index < HMAC_SHA1_BLOCK_SIZE; ++index) {
+		outerPad[index] = ctx->Key[index] ^ 0x5c;
+	}
+
+	result = Sha1Init(ctx->Sha1Context)
+		&& Sha1Update(ctx->Sha1Context, outerPad, sizeof(outerPad))
+		&& Sha1Update(ctx->Sha1Context, innerHash, sizeof(innerHash))
+		&& Sha1Final(ctx->Sha1Context, HmacValue);
+	MEM_BURN(innerHash, sizeof(innerHash));
+	MEM_BURN(outerPad, sizeof(outerPad));
+	return result;
+}
+
 //////////////////////////////////////////////////////////////////////////
 // TPM IO Create/ Free
 //////////////////////////////////////////////////////////////////////////
@@ -807,13 +909,25 @@ Tpm12OSAPStart(
 	Tpm12RespReadBytes(gTpm12Io, &gTpm12Osap->nonceEven, sizeof(TPM_NONCE), FALSE);
 	res = Tpm12RespReadBytes(gTpm12Io, &gTpm12Osap->nonceEvenOSAP, sizeof(TPM_NONCE), FALSE);
 	if (EFI_ERROR(res)) return res;
-	Sha1Hash(ownerPass, StrLen(ownerPass) * 2, (UINT8*)&ownerKey);
-	CtxSize = HmacSha1GetContextSize();
+	res = Sha1Hash(ownerPass, StrLen(ownerPass) * 2, (UINT8*)&ownerKey);
+	if (EFI_ERROR(res)) {
+		MEM_BURN(&ownerKey, sizeof(ownerKey));
+		return res;
+	}
+	CtxSize = DcsHmacSha1GetContextSize();
 	HmacCtx = MEM_ALLOC(CtxSize);
-	HmacSha1Init(HmacCtx, (UINT8*)&ownerKey, sizeof(ownerKey));
-	HmacSha1Update(HmacCtx, &gTpm12Osap->nonceEvenOSAP, sizeof(gTpm12Osap->nonceEvenOSAP));
-	HmacSha1Update(HmacCtx, &gTpm12Osap->nonceOddOSAP, sizeof(gTpm12Osap->nonceOddOSAP));
-	HmacSha1Final(HmacCtx, (UINT8*)&gTpm12Osap->SharedSecret);
+	if (HmacCtx == NULL) {
+		MEM_BURN(&ownerKey, sizeof(ownerKey));
+		return EFI_OUT_OF_RESOURCES;
+	}
+	if (!DcsHmacSha1Init(HmacCtx, (UINT8*)&ownerKey, sizeof(ownerKey))
+		|| !DcsHmacSha1Update(HmacCtx, &gTpm12Osap->nonceEvenOSAP, sizeof(gTpm12Osap->nonceEvenOSAP))
+		|| !DcsHmacSha1Update(HmacCtx, &gTpm12Osap->nonceOddOSAP, sizeof(gTpm12Osap->nonceOddOSAP))
+		|| !DcsHmacSha1Final(HmacCtx, (UINT8*)&gTpm12Osap->SharedSecret)) {
+		res = EFI_DEVICE_ERROR;
+	}
+	MEM_BURN(&ownerKey, sizeof(ownerKey));
+	MEM_BURN(HmacCtx, CtxSize);
 	MEM_FREE(HmacCtx);
 	return res;
 }
@@ -833,18 +947,30 @@ Tpm12OSAPAppend(
 	Tpm12IOWriteBytes(gTpm12Io, &gTpm12Osap->nonceOdd, sizeof(gTpm12Osap->nonceOdd), FALSE);
 	res = Tpm12IOWrite8(gTpm12Io, continueSession, FALSE);
 	*((UINT16*)gTpm12Io->Cmd) = SwapBytes16(TPM_TAG_RQU_AUTH1_COMMAND); // Update Tag
-	Sha1Final(gTpm12Io->Hash, (UINT8*)&hashCmd);
-	CtxSize = HmacSha1GetContextSize();
+	if (!Sha1Final(gTpm12Io->Hash, (UINT8*)&hashCmd)) {
+		MEM_BURN(&hashCmd, sizeof(hashCmd));
+		return EFI_DEVICE_ERROR;
+	}
+	CtxSize = DcsHmacSha1GetContextSize();
 	HmacCtx = MEM_ALLOC(CtxSize);
 	if (HmacCtx == NULL) return EFI_BUFFER_TOO_SMALL;
-	HmacSha1Init(HmacCtx, (UINT8*)&gTpm12Osap->SharedSecret, sizeof(gTpm12Osap->SharedSecret));
-	HmacSha1Update(HmacCtx, &hashCmd, sizeof(hashCmd));
-	HmacSha1Update(HmacCtx, &gTpm12Osap->nonceEven, sizeof(gTpm12Osap->nonceEven));
-	HmacSha1Update(HmacCtx, &gTpm12Osap->nonceOdd, sizeof(gTpm12Osap->nonceOdd));
-	HmacSha1Update(HmacCtx, &continueSession, sizeof(continueSession));
-	HmacSha1Final(HmacCtx, (UINT8*)&auth);
+	if (!DcsHmacSha1Init(HmacCtx, (UINT8*)&gTpm12Osap->SharedSecret, sizeof(gTpm12Osap->SharedSecret))
+		|| !DcsHmacSha1Update(HmacCtx, &hashCmd, sizeof(hashCmd))
+		|| !DcsHmacSha1Update(HmacCtx, &gTpm12Osap->nonceEven, sizeof(gTpm12Osap->nonceEven))
+		|| !DcsHmacSha1Update(HmacCtx, &gTpm12Osap->nonceOdd, sizeof(gTpm12Osap->nonceOdd))
+		|| !DcsHmacSha1Update(HmacCtx, &continueSession, sizeof(continueSession))
+		|| !DcsHmacSha1Final(HmacCtx, (UINT8*)&auth)) {
+		MEM_BURN(HmacCtx, CtxSize);
+		MEM_FREE(HmacCtx);
+		MEM_BURN(&hashCmd, sizeof(hashCmd));
+		MEM_BURN(&auth, sizeof(auth));
+		return EFI_DEVICE_ERROR;
+	}
+	MEM_BURN(HmacCtx, CtxSize);
 	MEM_FREE(HmacCtx);
 	res = Tpm12IOWriteBytes(gTpm12Io, &auth, sizeof(auth), FALSE);
+	MEM_BURN(&hashCmd, sizeof(hashCmd));
+	MEM_BURN(&auth, sizeof(auth));
 	return res;
 }
 

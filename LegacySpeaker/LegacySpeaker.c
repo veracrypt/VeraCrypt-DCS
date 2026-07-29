@@ -26,11 +26,15 @@ EFI_STATUS
 TurnOnSpeaker (
   )
 {
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+  return EFI_UNSUPPORTED;
+#else
   UINT8                   Data;
   Data = IoRead8 (EFI_SPEAKER_CONTROL_PORT);
   Data |= 0x03;
   IoWrite8(EFI_SPEAKER_CONTROL_PORT, Data);
   return EFI_SUCCESS;
+#endif
 }
 
 /**
@@ -44,12 +48,16 @@ EFI_STATUS
 TurnOffSpeaker (
   )
 {
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+  return EFI_UNSUPPORTED;
+#else
   UINT8                   Data;
 
   Data = IoRead8 (EFI_SPEAKER_CONTROL_PORT);
   Data &= 0xFC;
   IoWrite8(EFI_SPEAKER_CONTROL_PORT, Data);
   return EFI_SUCCESS;
+#endif
 }
 
 /**
@@ -101,6 +109,11 @@ ProgramToneFrequency (
   IN  UINT16                            Frequency
   )
 {
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+  (VOID)This;
+  (VOID)Frequency;
+  return EFI_UNSUPPORTED;
+#else
   UINT8                   Data;
 
   Data = 0xB6;
@@ -111,6 +124,7 @@ ProgramToneFrequency (
   Data = (UINT8)((Frequency & 0xFF00) >> 8);
   IoWrite8(EFI_TIMER_2_PORT, Data);
   return EFI_SUCCESS;
+#endif
 }
 
 /**

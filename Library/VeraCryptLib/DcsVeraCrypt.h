@@ -97,5 +97,20 @@ ApplyKeyFile(
 	IN     UINTN     keyfileDataSize
 	);
 
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+EFI_STATUS
+VCClearArm64BootArgsHandoff(
+	IN EFI_GUID* variableGuid);
+
+EFI_STATUS
+VCClearArm64RescueDecryptionComplete(
+	IN EFI_GUID* variableGuid);
+
+EFI_STATUS
+VCSetArm64RescueDecryptionComplete(
+	IN EFI_GUID* variableGuid,
+	IN UINT32 headerSaltCrc32);
+#endif
+
 #endif
 

@@ -365,7 +365,7 @@ AddSecondsDelta()
 		gScndCurrent = secs;
 		return;
 	}
-	if (secs > gScndCurrent) {
+	if (secs >= gScndCurrent) {
 		secsDelta = secs - gScndCurrent;
 	}	else {
 		secsDelta = 24 * 60 * 60 - gScndCurrent;

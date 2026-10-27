@@ -86,6 +86,319 @@ CHAR8* gOnExitNotFound = NULL;
 CHAR8* gOnExitTimeout = NULL;
 CHAR8* gOnExitCancelled = NULL;
 
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+static BOOLEAN
+VCValidateArm64BootArgsHandoffDescriptor(
+	IN VeraCryptArm64BootArgsHandoffDescriptor* descriptor)
+{
+	if (descriptor->Magic != VC_ARM64_BOOT_ARGS_HANDOFF_DESCRIPTOR_MAGIC
+		|| descriptor->Version != VC_ARM64_BOOT_ARGS_HANDOFF_VERSION
+		|| descriptor->Size != sizeof(*descriptor)
+		|| descriptor->PhysicalAddress == 0
+		|| (descriptor->PhysicalAddress % EFI_PAGE_SIZE) != 0
+		|| descriptor->RegionLength != VC_ARM64_BOOT_ARGS_HANDOFF_REGION_LENGTH
+		|| descriptor->PayloadLength != VC_ARM64_BOOT_ARGS_HANDOFF_PAYLOAD_LENGTH
+		|| descriptor->PayloadLength > descriptor->RegionLength
+		|| descriptor->PayloadLength > VC_ARM64_BOOT_ARGS_HANDOFF_ALLOCATION_TAG_OFFSET
+		|| descriptor->PhysicalAddress + descriptor->RegionLength
+			< descriptor->PhysicalAddress
+		|| descriptor->Crc32 != GetCrc32(
+			(uint8*)descriptor,
+			(int)((uint8*)&descriptor->Crc32 - (uint8*)descriptor))) {
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+
+static EFI_STATUS
+VCArm64BootArgsHandoffRegionIsRuntimeData(
+	IN VeraCryptArm64BootArgsHandoffDescriptor* descriptor,
+	OUT BOOLEAN* regionOwned)
+{
+	EFI_STATUS status;
+	EFI_MEMORY_DESCRIPTOR* memoryMap = NULL;
+	EFI_MEMORY_DESCRIPTOR* memoryDescriptor;
+	EFI_PHYSICAL_ADDRESS regionEnd;
+	UINTN memoryMapSize = 0;
+	UINTN mapKey = 0;
+	UINTN descriptorSize = 0;
+	UINT32 descriptorVersion = 0;
+	UINTN offset;
+	UINTN attempt;
+
+	if (descriptor == NULL || regionOwned == NULL) {
+		return EFI_INVALID_PARAMETER;
+	}
+	*regionOwned = FALSE;
+
+	for (attempt = 0; attempt < 4; ++attempt) {
+		memoryMapSize = 0;
+		descriptorSize = 0;
+		status = gBS->GetMemoryMap(
+			&memoryMapSize,
+			NULL,
+			&mapKey,
+			&descriptorSize,
+			&descriptorVersion);
+		if (status != EFI_BUFFER_TOO_SMALL) {
+			return status;
+		}
+		if (descriptorSize < sizeof(EFI_MEMORY_DESCRIPTOR)
+			|| descriptorSize > (((UINTN)~0 - memoryMapSize) / 2)) {
+			return EFI_COMPROMISED_DATA;
+		}
+
+		memoryMapSize += descriptorSize * 2;
+		memoryMap = (EFI_MEMORY_DESCRIPTOR*)MEM_ALLOC(memoryMapSize);
+		if (memoryMap == NULL) {
+			return EFI_OUT_OF_RESOURCES;
+		}
+
+		status = gBS->GetMemoryMap(
+			&memoryMapSize,
+			memoryMap,
+			&mapKey,
+			&descriptorSize,
+			&descriptorVersion);
+		if (status == EFI_BUFFER_TOO_SMALL) {
+			MEM_FREE(memoryMap);
+			memoryMap = NULL;
+			continue;
+		}
+		if (EFI_ERROR(status)) {
+			MEM_FREE(memoryMap);
+			return status;
+		}
+		if (descriptorSize < sizeof(EFI_MEMORY_DESCRIPTOR)
+			|| memoryMapSize < descriptorSize) {
+			MEM_FREE(memoryMap);
+			return EFI_COMPROMISED_DATA;
+		}
+		break;
+	}
+	if (memoryMap == NULL) {
+		return EFI_BUFFER_TOO_SMALL;
+	}
+
+	regionEnd = descriptor->PhysicalAddress + descriptor->RegionLength;
+	for (offset = 0; offset <= memoryMapSize - descriptorSize; offset += descriptorSize) {
+		EFI_PHYSICAL_ADDRESS memoryEnd;
+		EFI_PHYSICAL_ADDRESS maxAddress = (EFI_PHYSICAL_ADDRESS)~(EFI_PHYSICAL_ADDRESS)0;
+
+		memoryDescriptor = (EFI_MEMORY_DESCRIPTOR*)((UINT8*)memoryMap + offset);
+		if (memoryDescriptor->NumberOfPages
+			> (maxAddress - memoryDescriptor->PhysicalStart) / EFI_PAGE_SIZE) {
+			continue;
+		}
+		memoryEnd = memoryDescriptor->PhysicalStart
+			+ memoryDescriptor->NumberOfPages * EFI_PAGE_SIZE;
+
+		if (memoryDescriptor->Type == EfiRuntimeServicesData
+			&& (memoryDescriptor->Attribute & EFI_MEMORY_RUNTIME) != 0
+			&& descriptor->PhysicalAddress >= memoryDescriptor->PhysicalStart
+			&& regionEnd <= memoryEnd) {
+			*regionOwned = TRUE;
+			break;
+		}
+	}
+
+	MEM_FREE(memoryMap);
+	return EFI_SUCCESS;
+}
+
+
+static BOOLEAN
+VCArm64BootArgsHandoffAllocationTagMatchesDescriptor(
+	IN VeraCryptArm64BootArgsHandoffDescriptor* descriptor)
+{
+	UINT8* region = (UINT8*)(UINTN)descriptor->PhysicalAddress;
+	VeraCryptArm64BootArgsHandoffAllocationTag tag;
+	BOOLEAN matches;
+
+	CopyMem(
+		&tag,
+		region + VC_ARM64_BOOT_ARGS_HANDOFF_ALLOCATION_TAG_OFFSET,
+		sizeof(tag));
+	matches = tag.Magic == VC_ARM64_BOOT_ARGS_HANDOFF_ALLOCATION_TAG_MAGIC
+		&& tag.Version == VC_ARM64_BOOT_ARGS_HANDOFF_VERSION
+		&& tag.Size == sizeof(tag)
+		&& tag.PhysicalAddress == descriptor->PhysicalAddress
+		&& tag.RegionLength == descriptor->RegionLength
+		&& tag.Crc32 == GetCrc32(
+			(uint8*)&tag,
+			(int)((uint8*)&tag.Crc32 - (uint8*)&tag));
+
+	MEM_BURN(&tag, sizeof(tag));
+	return matches;
+}
+
+
+EFI_STATUS
+VCClearArm64BootArgsHandoff(
+	IN EFI_GUID* variableGuid)
+{
+	EFI_STATUS status;
+	EFI_STATUS deleteStatus;
+	EFI_STATUS freeStatus = EFI_SUCCESS;
+	EFI_STATUS wipeStatus = EFI_SUCCESS;
+	UINT8* variable = NULL;
+	UINTN variableSize = 0;
+	UINT32 attributes = 0;
+
+	if (variableGuid == NULL) {
+		return EFI_INVALID_PARAMETER;
+	}
+
+	status = EfiGetVar(
+		VC_ARM64_BOOT_ARGS_HANDOFF_VARIABLE_NAME,
+		variableGuid,
+		&variable,
+		&variableSize,
+		&attributes);
+	if (status == EFI_NOT_FOUND) {
+		return EFI_SUCCESS;
+	}
+	if (EFI_ERROR(status)) {
+		return status;
+	}
+
+	if (variableSize == sizeof(VeraCryptArm64BootArgsHandoffDescriptor)
+		&& attributes == VC_ARM64_BOOT_ARGS_HANDOFF_VARIABLE_ATTRIBUTES) {
+		VeraCryptArm64BootArgsHandoffDescriptor descriptor;
+		BOOLEAN regionOwned = FALSE;
+		EFI_STATUS ownershipStatus;
+
+		CopyMem(&descriptor, variable, sizeof(descriptor));
+		if (!VCValidateArm64BootArgsHandoffDescriptor(&descriptor)) {
+			MEM_BURN(&descriptor, sizeof(descriptor));
+			MEM_BURN(variable, variableSize);
+			MEM_FREE(variable);
+			return EFI_COMPROMISED_DATA;
+		}
+
+		ownershipStatus = VCArm64BootArgsHandoffRegionIsRuntimeData(
+			&descriptor,
+			&regionOwned);
+		if (EFI_ERROR(ownershipStatus)) {
+			MEM_BURN(&descriptor, sizeof(descriptor));
+			MEM_BURN(variable, variableSize);
+			MEM_FREE(variable);
+			return ownershipStatus;
+		}
+		if (!regionOwned
+			|| !VCArm64BootArgsHandoffAllocationTagMatchesDescriptor(&descriptor)) {
+			MEM_BURN(&descriptor, sizeof(descriptor));
+			MEM_BURN(variable, variableSize);
+			MEM_FREE(variable);
+			return EFI_COMPROMISED_DATA;
+		}
+
+		{
+			UINT8* region = (UINT8*)(UINTN)descriptor.PhysicalAddress;
+			MEM_BURN(region, descriptor.RegionLength);
+			freeStatus = gBS->FreePages(
+				descriptor.PhysicalAddress,
+				EFI_SIZE_TO_PAGES(descriptor.RegionLength));
+		}
+		MEM_BURN(&descriptor, sizeof(descriptor));
+	} else if (attributes ==
+			(EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS |
+			 EFI_VARIABLE_RUNTIME_ACCESS)
+		&& variableSize == VC_ARM64_BOOT_ARGS_HANDOFF_PAYLOAD_LENGTH) {
+		// Remove payloads written by the pre-v2 implementation without leaving
+		// their plaintext contents in non-volatile variable storage.
+		MEM_BURN(variable, variableSize);
+		wipeStatus = EfiSetVar(
+			VC_ARM64_BOOT_ARGS_HANDOFF_VARIABLE_NAME,
+			variableGuid,
+			variable,
+			variableSize,
+			attributes);
+	} else {
+		MEM_BURN(variable, variableSize);
+		MEM_FREE(variable);
+		return EFI_COMPROMISED_DATA;
+	}
+
+	deleteStatus = EfiSetVar(
+		VC_ARM64_BOOT_ARGS_HANDOFF_VARIABLE_NAME,
+		variableGuid,
+		NULL,
+		0,
+		0);
+	MEM_BURN(variable, variableSize);
+	MEM_FREE(variable);
+
+	if (EFI_ERROR(freeStatus)) {
+		return freeStatus;
+	}
+	if (EFI_ERROR(wipeStatus) && EFI_ERROR(deleteStatus)) {
+		return wipeStatus;
+	}
+	if (EFI_ERROR(deleteStatus) && deleteStatus != EFI_NOT_FOUND) {
+		return deleteStatus;
+	}
+	return EFI_SUCCESS;
+}
+
+
+EFI_STATUS
+VCClearArm64RescueDecryptionComplete(
+	IN EFI_GUID* variableGuid)
+{
+	EFI_STATUS status;
+
+	if (variableGuid == NULL) {
+		return EFI_INVALID_PARAMETER;
+	}
+
+	status = EfiSetVar(
+		VC_ARM64_RESCUE_DECRYPTION_COMPLETE_VARIABLE_NAME,
+		variableGuid,
+		NULL,
+		0,
+		0);
+	if (status == EFI_NOT_FOUND) {
+		return EFI_SUCCESS;
+	}
+	return status;
+}
+
+
+EFI_STATUS
+VCSetArm64RescueDecryptionComplete(
+	IN EFI_GUID* variableGuid,
+	IN UINT32 headerSaltCrc32)
+{
+	VeraCryptArm64RescueDecryptionComplete marker;
+	EFI_STATUS status;
+
+	if (variableGuid == NULL) {
+		return EFI_INVALID_PARAMETER;
+	}
+
+	ZeroMem(&marker, sizeof(marker));
+	marker.Magic = VC_ARM64_RESCUE_DECRYPTION_COMPLETE_MAGIC;
+	marker.Version = VC_ARM64_RESCUE_DECRYPTION_COMPLETE_VERSION;
+	marker.Size = (UINT32)sizeof(marker);
+	marker.HeaderSaltCrc32 = headerSaltCrc32;
+	marker.Crc32 = GetCrc32(
+		(uint8*)&marker,
+		(int)((uint8*)&marker.Crc32 - (uint8*)&marker));
+
+	status = EfiSetVar(
+		VC_ARM64_RESCUE_DECRYPTION_COMPLETE_VARIABLE_NAME,
+		variableGuid,
+		&marker,
+		sizeof(marker),
+		VC_ARM64_RESCUE_DECRYPTION_COMPLETE_VARIABLE_ATTRIBUTES);
+	MEM_BURN(&marker, sizeof(marker));
+	return status;
+}
+#endif
+
 //////////////////////////////////////////////////////////////////////////
 // Authorize
 /////////////////////////////////////////////////////////////////////////
@@ -108,7 +421,7 @@ VCAuthLoadConfig()
 	strTemp = MEM_ALLOC(MAX_MSG);
 	VCCONFIG_ALLOC(gPasswordPictureFileName, MAX_MSG * 2);
 	ConfigReadString("PasswordPicture", "\\EFI\\VeraCrypt\\login.bmp", strTemp, MAX_MSG);
-	AsciiStrToUnicodeStr(strTemp, gPasswordPictureFileName);
+	AsciiStrToUnicodeStrS(strTemp, gPasswordPictureFileName, MAX_MSG);
 	MEM_FREE(strTemp);
 
 	VCCONFIG_ALLOC(gPasswordPictureChars, MAX_MSG);

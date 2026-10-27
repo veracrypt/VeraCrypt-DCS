@@ -72,3 +72,6 @@ NOOPT_VS2015x86_IA32_CC_FLAGS    = /arch:IA32  /FAcs
 
 [Depex]
   TRUE
+
+[BuildOptions.AARCH64]
+MSFT:*_*_AARCH64_CC_FLAGS = /D_UEFI

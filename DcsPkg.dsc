@@ -9,7 +9,7 @@
   PLATFORM_VERSION               = 0.1
   DSC_SPECIFICATION              = 0x00010005
   OUTPUT_DIRECTORY               = Build/DcsPkg
-  SUPPORTED_ARCHITECTURES        = X64 | IA32
+  SUPPORTED_ARCHITECTURES        = X64 | IA32 | AARCH64
   BUILD_TARGETS                  = DEBUG|RELEASE
 
 [BuildOptions]
@@ -19,8 +19,12 @@
   INTEL:RELEASE_*_*_CC_FLAGS           = /D MDEPKG_NDEBUG
   MSFT:*_*_*_CC_FLAGS                  = /DVC_DCS_DISABLE_ARGON2
   MSFT:RELEASE_*_*_CC_FLAGS            = /D MDEPKG_NDEBUG
+  MSFT:*_*_X64_CC_FLAGS                = /D_UEFI
+  MSFT:*_*_X64_NASM_FLAGS              = -Xvc -d_UEFI=1
   MSFT:*_*_X64_GENFW_FLAGS             = --keepexceptiontable
-  GCC:*_*_*_CC_FLAGS                   = -DVC_DCS_DISABLE_ARGON2 -mno-mmx -mno-sse
+  GCC:*_*_*_CC_FLAGS                   = -DVC_DCS_DISABLE_ARGON2
+  GCC:*_*_IA32_CC_FLAGS                = -mno-mmx -mno-sse
+  GCC:*_*_X64_CC_FLAGS                 = -mno-mmx -mno-sse
 
 ################################################################################
 #
@@ -34,6 +38,10 @@
   BaseLib|MdePkg/Library/BaseLib/BaseLib.inf
   BaseMemoryLib|MdePkg/Library/BaseMemoryLibRepStr/BaseMemoryLibRepStr.inf
   DebugLib|MdePkg/Library/UefiDebugLibConOut/UefiDebugLibConOut.inf
+  SynchronizationLib|MdePkg/Library/BaseSynchronizationLib/BaseSynchronizationLib.inf
+  RegisterFilterLib|MdePkg/Library/RegisterFilterLibNull/RegisterFilterLibNull.inf
+  StackCheckLib|MdePkg/Library/StackCheckLib/StackCheckLib.inf
+  StackCheckFailureHookLib|MdePkg/Library/StackCheckFailureHookLibNull/StackCheckFailureHookLibNull.inf
 
   PrintLib|MdePkg/Library/BasePrintLib/BasePrintLib.inf
   DebugPrintErrorLevelLib|MdePkg/Library/BaseDebugPrintErrorLevelLib/BaseDebugPrintErrorLevelLib.inf
@@ -41,9 +49,6 @@
   TimerLib|MdePkg/Library/BaseTimerLibNullTemplate/BaseTimerLibNullTemplate.inf
 
   IoLib|MdePkg/Library/BaseIoLibIntrinsic/BaseIoLibIntrinsic.inf
-
-  PciLib|MdePkg/Library/BasePciLibCf8/BasePciLibCf8.inf
-  PciCf8Lib|MdePkg/Library/BasePciCf8Lib/BasePciCf8Lib.inf
 
   UefiUsbLib|MdePkg/Library/UefiUsbLib/UefiUsbLib.inf
 
@@ -56,6 +61,7 @@
   TpmMeasurementLib|SecurityPkg/Library/DxeTpmMeasurementLib/DxeTpmMeasurementLib.inf
   Tpm2DeviceLib|SecurityPkg/Library/Tpm2DeviceLibTcg2/Tpm2DeviceLibTcg2.inf
   Tpm2CommandLib|SecurityPkg/Library/Tpm2CommandLib/Tpm2CommandLib.inf
+  Tpm2HelpLib|SecurityPkg/Library/Tpm2HelpLib/Tpm2HelpLib.inf
 
   UefiBootServicesTableLib|MdePkg/Library/UefiBootServicesTableLib/UefiBootServicesTableLib.inf
   UefiRuntimeServicesTableLib|MdePkg/Library/UefiRuntimeServicesTableLib/UefiRuntimeServicesTableLib.inf
@@ -72,6 +78,13 @@
   DcsCfgLib|DcsPkg/Library/DcsCfgLib/DcsCfgLib.inf
   DcsTpmLib|DcsPkg/Library/DcsTpmLib/DcsTpmLib.inf
   VeraCryptLib|DcsPkg/Library/VeraCryptLib/VeraCryptLib.inf
+
+[LibraryClasses.AARCH64]
+  BaseMemoryLib|MdePkg/Library/BaseMemoryLib/BaseMemoryLib.inf
+
+[LibraryClasses.IA32, LibraryClasses.X64]
+  PciLib|MdePkg/Library/BasePciLibCf8/BasePciLibCf8.inf
+  PciCf8Lib|MdePkg/Library/BasePciCf8Lib/BasePciCf8Lib.inf
 
  [LibraryClasses.common.UEFI_APPLICATION]
   ShellLib|ShellPkg/Library/UefiShellLib/UefiShellLib.inf

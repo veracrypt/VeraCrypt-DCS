@@ -47,6 +47,7 @@ call :create_link crypto\kuznyechik.c
 call :create_link crypto\kuznyechik.h
 call :create_link crypto\Aes.h
 call :create_link crypto\Aeskey.c
+call :create_link crypto\Aescrypt.c
 call :create_link crypto\Aesopt.h
 call :create_link crypto\Aestab.c
 call :create_link crypto\Aestab.h

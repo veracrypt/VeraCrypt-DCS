@@ -201,7 +201,11 @@ DcsCfgMain(
 
 	InitBio();
 	InitFS();
+#if CRYPTOPP_BOOL_ARMV8
+	DetectArmFeatures();
+#else
 	DetectX86Features();
+#endif
 
 	//
    // initialize the shell lib (we must be in non-auto-init...)

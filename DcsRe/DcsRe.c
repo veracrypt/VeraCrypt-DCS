@@ -21,7 +21,10 @@ https://opensource.org/licenses/LGPL-3.0
 #include "DcsConfig.h"
 #include "common/Tcdefs.h"
 
-#ifdef _M_X64
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+#define ARCHdot L"aa64."
+#define ARCHdotEFI L"aa64.efi"
+#elif defined(_M_X64)
 #define ARCHdot L"x64."
 #define ARCHdotEFI L"x64.efi"
 #else
@@ -168,6 +171,11 @@ ActionDcsRecoveryBoot(IN VOID* ctx) {
 
 EFI_STATUS
 ActionWindowsBoot(IN VOID* ctx) {
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+	(VOID)ctx;
+	ERR_PRINT(L"Direct Windows boot is disabled on ARM64. Boot through the VeraCrypt loader so the authenticated handoff can clear the system-encryption requirement.\r\n");
+	return EFI_ACCESS_DENIED;
+#else
 	if (AskConfirm("If Windows is encrypted, Windows original loader will fail to start.\r\nDo you want to continue? [N]", 1))
 	{
 		SelectEfiVolume();
@@ -212,6 +220,7 @@ ActionWindowsBoot(IN VOID* ctx) {
 	}
 	else
 		return EFI_SUCCESS;
+#endif
 }
 
 CHAR16* DcsBootBins[] = {
@@ -355,7 +364,15 @@ EFI_STATUS
 ActionDecryptOS(IN VOID* ctx) {
 	EFI_STATUS res = EFI_NOT_READY;
 	res = EfiSetVar(L"dcscfgcmd", NULL, sOSDecrypt, StrSize(sOSDecrypt), EFI_VARIABLE_BOOTSERVICE_ACCESS);
-	return EfiExec(NULL, sDcsCfg);
+	if (!EFI_ERROR(res)) {
+		res = EfiExec(NULL, sDcsCfg);
+	}
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+	if (!EFI_ERROR(res)) {
+		OUT_PRINT(L"Decryption completed. Boot Windows through the VeraCrypt loader once so the authenticated handoff can clear the system-encryption requirement.\r\n");
+	}
+#endif
+	return res;
 }
 
 EFI_STATUS
@@ -423,7 +440,9 @@ DcsReMain(
 			}
 		}
 
+#if !defined(_M_ARM64) && !defined(MDE_CPU_AARCH64)
 		item = DcsMenuAppend(item, L"Boot Original Windows Loader", 'o', ActionWindowsBoot, NULL);
+#endif
 
 		if (!EFI_ERROR(FileExist(NULL, L"EFI\\Boot\\WinPE_boot" ARCHdotEFI))) {
 			item = DcsMenuAppend(item, L"Boot Windows PE from rescue disk", 'w', ActionBootWinPE, NULL);

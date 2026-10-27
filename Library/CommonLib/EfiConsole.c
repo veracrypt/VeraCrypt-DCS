@@ -509,7 +509,10 @@ DcsMenuAppend(
 	if (item == NULL) return item;
 	item->Action = action;
 	item->Context = actionContext;
-	StrCat(item->Text, text);
+	if (RETURN_ERROR(StrCpyS(item->Text, sizeof(item->Text) / sizeof(item->Text[0]), text))) {
+		MEM_FREE(item);
+		return NULL;
+	}
 	item->Select = select;
 	if (menu != NULL) {
 		menu->Next = item;

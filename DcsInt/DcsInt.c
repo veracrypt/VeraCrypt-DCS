@@ -66,6 +66,16 @@ typedef struct _BOOT_PARAMS {
 } BOOT_PARAMS, *PBOOT_PARAMS;
 #pragma pack()
 
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+typedef char VC_ARM64_BOOT_PARAMS_SIZE_CHECK[sizeof(BOOT_PARAMS) == 158 ? 1 : -1];
+typedef char VC_ARM64_BOOT_ARGS_HANDOFF_SIZE_CHECK[
+	VC_ARM64_BOOT_ARGS_HANDOFF_PAYLOAD_LENGTH ==
+		sizeof(VeraCryptArm64BootArgsHandoffPayloadHeader) + sizeof(BOOT_PARAMS) ? 1 : -1];
+typedef char VC_ARM64_BOOT_ARGS_HANDOFF_ATTRIBUTES_CHECK[
+	VC_ARM64_BOOT_ARGS_HANDOFF_VARIABLE_ATTRIBUTES ==
+		(EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS) ? 1 : -1];
+#endif
+
 UINT32                  gHeaderSaltCrc32 = 0;
 PBOOT_PARAMS            bootParams = NULL;
 // #define EFI_BOOTARGS_REGIONS_TEST ,0x9000000, 0xA000000
@@ -106,7 +116,20 @@ CleanSensitiveData(BOOLEAN bClearBootParams)
 
 	if (bootParams != NULL && bClearBootParams) {
 		MEM_BURN(bootParams, sizeof(*bootParams));
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+		MEM_FREE(bootParams);
+		bootParams = NULL;
+#endif
 	}
+
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+	if (bClearBootParams) {
+		EFI_STATUS clearStatus = VCClearArm64BootArgsHandoff(&gEfiDcsVariableGuid);
+		if (EFI_ERROR(clearStatus)) {
+			ERR_PRINT(L"Can not clear ARM64 boot params: %r\n", clearStatus);
+		}
+	}
+#endif
 
 	if (gAutoPassword != NULL) {
 		MEM_BURN(gAutoPassword, MAX_PASSWORD);
@@ -125,6 +148,11 @@ void HaltPrint(const CHAR16* Msg)
 
 EFI_STATUS
 GetBootParamsMemory() {
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+	if (bootParams != NULL) return EFI_SUCCESS;
+	bootParams = (PBOOT_PARAMS)MEM_ALLOC(sizeof(*bootParams));
+	return bootParams == NULL ? EFI_OUT_OF_RESOURCES : EFI_SUCCESS;
+#else
 	EFI_STATUS              status = 0;
 	UINTN                   index;
 	if (bootParams != NULL) return EFI_SUCCESS;
@@ -135,18 +163,26 @@ GetBootParamsMemory() {
 		}
 	}
 	return status;
+#endif
 }
 
 EFI_STATUS
 SetSecRegionParamsMemory() {
 	EFI_STATUS              status = 0;
+#if !defined(_M_ARM64) && !defined(MDE_CPU_AARCH64)
 	UINTN                   index;
 	UINT8*                  secRegion = NULL;
+#endif
 	UINT32                  crc;
 	if (bootParams == NULL) return EFI_NOT_READY;
 
 	bootParams->SecRegion.Ptr = 0;
 	bootParams->SecRegion.Size = 0;
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+	if (DeList != NULL) {
+		return EFI_UNSUPPORTED;
+	}
+#else
 	if (DeList != NULL) {
 		for (index = 0; index < sizeof(BootArgsRegions) / sizeof(BootArgsRegions[1]); ++index) {
 			status = PrepareMemory(BootArgsRegions[index], DeList->DataSize, &secRegion);
@@ -159,6 +195,7 @@ SetSecRegionParamsMemory() {
 			}
 		}
 	}
+#endif
 	status = gBS->CalculateCrc32(&bootParams->SecRegion, sizeof(SECREGION_BOOT_PARAMS) - 4, &crc);
 	bootParams->SecRegion.Crc = crc;
 	return status;
@@ -188,8 +225,12 @@ PrepareBootParams(
 		bootParams->BootCryptoInfo.ea = (uint16)cryptoInfo->ea;
 		bootParams->BootCryptoInfo.mode = (uint16)cryptoInfo->mode;
 		bootParams->BootCryptoInfo.pkcs5 = (uint16)cryptoInfo->pkcs5;
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+		status = SetSecRegionParamsMemory();
+#else
 		SetSecRegionParamsMemory();
 		status = EFI_SUCCESS;
+#endif
 	}
 
 	// Clean auth data
@@ -198,6 +239,94 @@ PrepareBootParams(
 
 	return status;
 }
+
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+static EFI_STATUS
+PublishArm64BootArgsHandoffPayload()
+{
+	EFI_STATUS status;
+	EFI_PHYSICAL_ADDRESS regionAddress = 0;
+	UINT8 *region;
+	UINT8 *payload;
+	VeraCryptArm64BootArgsHandoffDescriptor descriptor;
+	VeraCryptArm64BootArgsHandoffPayloadHeader *header;
+	VeraCryptArm64BootArgsHandoffAllocationTag *allocationTag;
+
+	if (bootParams == NULL) {
+		return EFI_NOT_READY;
+	}
+	if (DeList != NULL || bootParams->SecRegion.Ptr != 0 || bootParams->SecRegion.Size != 0) {
+		return EFI_UNSUPPORTED;
+	}
+
+	status = gBS->AllocatePages(
+		AllocateAnyPages,
+		EfiRuntimeServicesData,
+		EFI_SIZE_TO_PAGES(VC_ARM64_BOOT_ARGS_HANDOFF_REGION_LENGTH),
+		&regionAddress);
+	if (EFI_ERROR(status)) {
+		return status;
+	}
+
+	region = (UINT8*)(UINTN)regionAddress;
+	ZeroMem(region, VC_ARM64_BOOT_ARGS_HANDOFF_REGION_LENGTH);
+	header = (VeraCryptArm64BootArgsHandoffPayloadHeader*)region;
+	payload = region + sizeof(*header);
+	CopyMem(payload, bootParams, sizeof(*bootParams));
+
+	header->Magic = VC_ARM64_BOOT_ARGS_HANDOFF_PAYLOAD_MAGIC;
+	header->Version = VC_ARM64_BOOT_ARGS_HANDOFF_VERSION;
+	header->Size = (UINT32)sizeof(*header);
+	header->BootArgsOffset = TC_BOOT_LOADER_ARGS_OFFSET;
+	header->PayloadLength = (UINT32)sizeof(*bootParams);
+	header->PayloadCrc32 = GetCrc32(payload, (int)sizeof(*bootParams));
+	header->Crc32 = GetCrc32(
+		(uint8 *)header,
+		(int)((uint8 *)&header->Crc32 - (uint8 *)header));
+
+	allocationTag = (VeraCryptArm64BootArgsHandoffAllocationTag*)(
+		region + VC_ARM64_BOOT_ARGS_HANDOFF_ALLOCATION_TAG_OFFSET);
+	allocationTag->Magic = VC_ARM64_BOOT_ARGS_HANDOFF_ALLOCATION_TAG_MAGIC;
+	allocationTag->Version = VC_ARM64_BOOT_ARGS_HANDOFF_VERSION;
+	allocationTag->Size = (UINT32)sizeof(*allocationTag);
+	allocationTag->PhysicalAddress = regionAddress;
+	allocationTag->RegionLength = VC_ARM64_BOOT_ARGS_HANDOFF_REGION_LENGTH;
+	allocationTag->Crc32 = GetCrc32(
+		(uint8*)allocationTag,
+		(int)((uint8*)&allocationTag->Crc32 - (uint8*)allocationTag));
+
+	descriptor.Magic = VC_ARM64_BOOT_ARGS_HANDOFF_DESCRIPTOR_MAGIC;
+	descriptor.Version = VC_ARM64_BOOT_ARGS_HANDOFF_VERSION;
+	descriptor.Size = (UINT32)sizeof(descriptor);
+	descriptor.PhysicalAddress = regionAddress;
+	descriptor.RegionLength = VC_ARM64_BOOT_ARGS_HANDOFF_REGION_LENGTH;
+	descriptor.PayloadLength = (UINT32)VC_ARM64_BOOT_ARGS_HANDOFF_PAYLOAD_LENGTH;
+	descriptor.PayloadCrc32 = GetCrc32(region, (int)descriptor.PayloadLength);
+	descriptor.Crc32 = GetCrc32(
+		(uint8*)&descriptor,
+		(int)((uint8*)&descriptor.Crc32 - (uint8*)&descriptor));
+
+	status = EfiSetVar(
+		VC_ARM64_BOOT_ARGS_HANDOFF_VARIABLE_NAME,
+		&gEfiDcsVariableGuid,
+		&descriptor,
+		sizeof(descriptor),
+		VC_ARM64_BOOT_ARGS_HANDOFF_VARIABLE_ATTRIBUTES);
+
+	if (!EFI_ERROR(status)) {
+		MEM_BURN(bootParams, sizeof(*bootParams));
+		MEM_FREE(bootParams);
+		bootParams = NULL;
+	} else {
+		MEM_BURN(region, VC_ARM64_BOOT_ARGS_HANDOFF_REGION_LENGTH);
+		gBS->FreePages(
+			regionAddress,
+			EFI_SIZE_TO_PAGES(VC_ARM64_BOOT_ARGS_HANDOFF_REGION_LENGTH));
+	}
+	MEM_BURN(&descriptor, sizeof(descriptor));
+	return status;
+}
+#endif
 
 void GetIntersection(uint64 start1, uint32 length1, uint64 start2, uint64 end2, uint64 *intersectStart, uint32 *intersectLength)
 {
@@ -270,6 +399,39 @@ GetBlockIoByProtocol(
 		DcsIntBlockIo = DcsIntBlockIo->Next;
 	}
 	return NULL;
+}
+
+static EFI_STATUS
+IntBlockIo_UnhookAll()
+{
+	EFI_STATUS status;
+
+	while (DcsIntBlockIoFirst != NULL) {
+		DCSINT_BLOCK_IO *blockIo = DcsIntBlockIoFirst;
+
+		if (blockIo->Sign != DCSINT_BLOCK_IO_SIGN
+			|| blockIo->BlockIo == NULL
+			|| blockIo->LowRead == NULL
+			|| blockIo->LowWrite == NULL) {
+			return EFI_COMPROMISED_DATA;
+		}
+
+		blockIo->BlockIo->ReadBlocks = blockIo->LowRead;
+		blockIo->BlockIo->WriteBlocks = blockIo->LowWrite;
+		status = gBS->ReinstallProtocolInterface(
+			blockIo->Controller,
+			&gEfiBlockIoProtocolGuid,
+			blockIo->BlockIo,
+			blockIo->BlockIo);
+		if (EFI_ERROR(status)) {
+			return status;
+		}
+
+		DcsIntBlockIoFirst = blockIo->Next;
+		MEM_BURN(blockIo, sizeof(*blockIo));
+		MEM_FREE(blockIo);
+	}
+	return EFI_SUCCESS;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -1041,13 +1203,16 @@ OnExit(
 	CHAR8* delayStr = NULL;
 	EFI_GUID *guid = NULL;
 	CHAR16  *fileStr  = NULL;
+	BOOLEAN sensitiveDataCleaned = FALSE;
 
-	if (EFI_ERROR(retValue))
-	{
+	if (EFI_ERROR(retValue)) {
 		CleanSensitiveData(TRUE);
+		sensitiveDataCleaned = TRUE;
 	}
 
-	if (action == NULL) return retValue;
+	if (action == NULL) {
+		return retValue;
+	}
 
 	if (OnExitGetParam(action, "guid", &guidStr, NULL)) {
 		EFI_GUID tmp;
@@ -1105,7 +1270,6 @@ OnExit(
 			res = EfiFindPartByGUID(guid, &h);
 			if (EFI_ERROR(res)) {
 				ERR_PRINT(L"\nCan't find start partition\n");
-				CleanSensitiveData(TRUE);
 				retValue = EFI_DCS_HALT_REQUESTED;
 				goto exit;
 			}
@@ -1114,14 +1278,12 @@ OnExit(
 				res = EfiExec(h, fileStr);
 				if (EFI_ERROR(res)) {
 					ERR_PRINT(L"\nStart %s - %r\n", fileStr, res);
-					CleanSensitiveData(TRUE);
 					retValue = EFI_DCS_HALT_REQUESTED;
 					goto exit;
 				}
 			}
 			else {
 				ERR_PRINT(L"\nNo EFI execution path specified. Halting!\n");
-				CleanSensitiveData(TRUE);
 				retValue = EFI_DCS_HALT_REQUESTED;
 				goto exit;
 			}
@@ -1150,6 +1312,10 @@ OnExit(
 	}
 
 exit:
+	if (!sensitiveDataCleaned && EFI_ERROR(retValue)) {
+		CleanSensitiveData(TRUE);
+	}
+
 	MEM_FREE(guidStr);
 	MEM_FREE(exitStatusStr);
 	MEM_FREE(messageStr);
@@ -1234,6 +1400,37 @@ PauseHandleInfo(
 	}
 }
 
+static VOID
+RollbackDcsIntSetup(
+	IN BOOLEAN closeVirtualAddressChangeEvent)
+{
+	EFI_STATUS status;
+
+	if (closeVirtualAddressChangeEvent) {
+		status = gBS->CloseEvent(mVirtualAddrChangeEvent);
+		if (EFI_ERROR(status)) {
+			ERR_PRINT(L"Can not close virtual-address-change event: %r\n", status);
+			HaltPrint(L"DcsInt setup rollback failed");
+		}
+		mVirtualAddrChangeEvent = NULL;
+	}
+
+	status = IntBlockIo_UnhookAll();
+	if (EFI_ERROR(status)) {
+		ERR_PRINT(L"Can not restore DcsInt block I/O hooks: %r\n", status);
+		HaltPrint(L"DcsInt setup rollback failed");
+	}
+
+	status = EfiLibUninstallDriverBindingComponentName2(
+		&g_DcsIntDriverBinding,
+		&gDcsIntComponentName,
+		&gDcsIntComponentName2);
+	if (EFI_ERROR(status)) {
+		ERR_PRINT(L"Can not uninstall DcsInt driver binding: %r\n", status);
+		HaltPrint(L"DcsInt setup rollback failed");
+	}
+}
+
 //////////////////////////////////////////////////////////////////////////
 // Driver Entry Point
 //////////////////////////////////////////////////////////////////////////
@@ -1246,6 +1443,13 @@ UefiMain(
 
 	InitBio();
 	InitFS();
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+	res = VCClearArm64BootArgsHandoff(&gEfiDcsVariableGuid);
+	if (EFI_ERROR(res)) {
+		ERR_PRINT(L"Can not clear stale ARM64 boot params: %r\n", res);
+		return res;
+	}
+#endif
 	gRescueBoot = IsRescueBoot();
 	if (gRescueBoot) {
 		res = GetRescueExecPartGuid(&gRescueExecPartGuid);
@@ -1356,7 +1560,11 @@ UefiMain(
 		}
 	}
 
+#if CRYPTOPP_BOOL_ARMV8
+	DetectArmFeatures();
+#else
 	DetectX86Features();
+#endif
 	res = SecRegionTryDecrypt();
 	if (gTpm != NULL) {
 		gTpm->Lock(gTpm);
@@ -1405,6 +1613,33 @@ UefiMain(
 		&gEfiEventVirtualAddressChangeGuid,
 		&mVirtualAddrChangeEvent
 		);
+	if (EFI_ERROR(res)) {
+		ERR_PRINT(L"Can not create virtual-address-change event: %r\n", res);
+		RollbackDcsIntSetup(FALSE);
+		return OnExit(gOnExitFailed, OnExitAuthFaild, res);
+	}
 
-	return OnExit(gOnExitSuccess, OnExitSuccess, res);
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+	res = PublishArm64BootArgsHandoffPayload();
+	if (EFI_ERROR(res)) {
+		ERR_PRINT(L"Can not publish ARM64 boot params: %r", res);
+		RollbackDcsIntSetup(TRUE);
+		return OnExit(gOnExitFailed, OnExitAuthFaild, res);
+	}
+#endif
+
+	res = OnExit(gOnExitSuccess, OnExitSuccess, res);
+	if (EFI_ERROR(res)) {
+		RollbackDcsIntSetup(TRUE);
+#if defined(_M_ARM64) || defined(MDE_CPU_AARCH64)
+		{
+			EFI_STATUS clearStatus = VCClearArm64BootArgsHandoff(&gEfiDcsVariableGuid);
+			if (EFI_ERROR(clearStatus)) {
+				ERR_PRINT(L"Can not clear ARM64 boot params: %r\n", clearStatus);
+				HaltPrint(L"ARM64 boot parameter cleanup failed");
+			}
+		}
+#endif
+	}
+	return res;
 }
